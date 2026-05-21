@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Support Stack Portal</title>
+  <style>
+    :root {
+      --bg-a: #0b1220;
+      --bg-b: #111b2f;
+      --panel: #17243d;
+      --panel-2: #1f3153;
+      --text: #eaf1ff;
+      --muted: #a7b7d8;
+      --accent: #4cc9f0;
+      --accent-2: #80ed99;
+      --ring: rgba(76, 201, 240, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Segoe UI", "Noto Sans", "Helvetica Neue", sans-serif;
+      background:
+        radial-gradient(circle at 15% 15%, #213760 0%, transparent 30%),
+        radial-gradient(circle at 85% 0%, #1a2c4b 0%, transparent 28%),
+        linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 100%);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 40px 18px 64px;
+    }
+
+    .hero {
+      background: linear-gradient(140deg, rgba(128, 237, 153, 0.15), rgba(76, 201, 240, 0.12));
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      padding: 26px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.25);
+    }
+
+    .hero-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .brand-logo {
+      width: clamp(120px, 20vw, 220px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.25));
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.7rem, 2.2vw, 2.5rem);
+      letter-spacing: 0.02em;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      max-width: 74ch;
+      line-height: 1.55;
+    }
+
+    .grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .section-title {
+      margin: 26px 4px 8px;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+    }
+
+    .quick {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      display: inline-block;
+      text-decoration: none;
+      color: #d9f2ff;
+      background: rgba(76, 201, 240, 0.14);
+      border: 1px solid rgba(76, 201, 240, 0.5);
+      border-radius: 999px;
+      font-size: 0.83rem;
+      padding: 8px 12px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: linear-gradient(160deg, var(--panel), var(--panel-2));
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 16px 14px;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      min-height: 122px;
+    }
+
+    .card:hover,
+    .card:focus-visible {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--ring);
+      outline: none;
+    }
+
+    .name {
+      margin: 0 0 8px;
+      font-size: 1.03rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.45;
+    }
+
+    .url {
+      margin-top: 10px;
+      color: var(--accent-2);
+      font-size: 0.83rem;
+      word-break: break-all;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        transition: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .hero-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-head">
+        <img class="brand-logo" src="/logo.svg" alt="Company Logo" />
+        <h1>Support Platform Portal</h1>
+      </div>
+      <p class="sub">Central entry point for your support stack. Use the cards below to open each service directly.</p>
+      <div class="quick" aria-label="Quick links">
+        <a class="pill" target="_blank" rel="noopener noreferrer" data-service="remote" href="#">Open Remote Access</a>
+        <a class="pill" target="_blank" rel="noopener noreferrer" data-service="tickets" href="#">Open Ticketing</a>
+        <a class="pill" target="_blank" rel="noopener noreferrer" data-service="status" href="#">Open Uptime</a>
+      </div>
+    </section>
+
+    <p class="section-title">Operations</p>
+    <section class="grid" aria-label="Service links">
+      <a class="card" href="#" data-service="remote" target="_blank" rel="noopener noreferrer">
+        <p class="name">Remote Access</p>
+        <p class="desc">Guacamole jump-host for RDP/SSH/VNC sessions.</p>
+        <p class="url" data-url="remote">remote.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="tickets" target="_blank" rel="noopener noreferrer">
+        <p class="name">Ticketing</p>
+        <p class="desc">osTicket portal for customer support requests.</p>
+        <p class="url" data-url="tickets">tickets.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="status" target="_blank" rel="noopener noreferrer">
+        <p class="name">Uptime Status</p>
+        <p class="desc">Uptime Kuma checks and availability dashboard.</p>
+        <p class="url" data-url="status">status.example.com</p>
+      </a>
+    </section>
+
+    <p class="section-title">Core Services</p>
+    <section class="grid" aria-label="Core platform links">
+      <a class="card" href="#" data-service="crm" target="_blank" rel="noopener noreferrer">
+        <p class="name">CRM</p>
+        <p class="desc">EspoCRM for customer pipeline and account data.</p>
+        <p class="url" data-url="crm">crm.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="docs" target="_blank" rel="noopener noreferrer">
+        <p class="name">Knowledge Base</p>
+        <p class="desc">BookStack documentation and SOP library.</p>
+        <p class="url" data-url="docs">docs.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="vault" target="_blank" rel="noopener noreferrer">
+        <p class="name">Password Vault</p>
+        <p class="desc">Vaultwarden for secrets and shared credentials.</p>
+        <p class="url" data-url="vault">vault.example.com</p>
+      </a>
+    </section>
+
+    <p class="section-title">Identity & Mesh</p>
+    <section class="grid" aria-label="Identity and mesh links">
+      <a class="card" href="#" data-service="mesh-web" target="_blank" rel="noopener noreferrer">
+        <p class="name">Mesh UI</p>
+        <p class="desc">Headscale web interface behind OAuth2 proxy.</p>
+        <p class="url" data-url="mesh-web">mesh-web.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="mesh" target="_blank" rel="noopener noreferrer">
+        <p class="name">Headscale API</p>
+        <p class="desc">Headscale control plane endpoint.</p>
+        <p class="url" data-url="mesh">mesh.example.com</p>
+      </a>
+
+      <a class="card" href="#" data-service="sso" target="_blank" rel="noopener noreferrer">
+        <p class="name">SSO</p>
+        <p class="desc">Keycloak identity provider and realm access.</p>
+        <p class="url" data-url="sso">sso.example.com</p>
+      </a>
+    </section>
+
+    <p class="footer">Support Stack Central Portal</p>
+  </main>
+  <script>
+    (function () {
+      var hosts = {
+        support: "__SUPPORT_HOST__",
+        sso: "__SSO_HOST__",
+        vault: "__VAULT_HOST__",
+        docs: "__DOCS_HOST__",
+        remote: "__REMOTE_HOST__",
+        mesh: "__MESH_HOST__",
+        "mesh-web": "__MESH_WEB_HOST__",
+        tickets: "__TICKETS_HOST__",
+        crm: "__CRM_HOST__",
+        status: "__STATUS_HOST__"
+      };
+
+      document.querySelectorAll("[data-service]").forEach(function (el) {
+        var key = el.getAttribute("data-service");
+        if (!hosts[key]) return;
+        el.setAttribute("href", "https://" + hosts[key]);
+      });
+
+      document.querySelectorAll("[data-url]").forEach(function (el) {
+        var key = el.getAttribute("data-url");
+        if (!hosts[key]) return;
+        el.textContent = hosts[key];
+      });
+    })();
+  </script>
+</body>
+</html>

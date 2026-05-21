@@ -1,0 +1,518 @@
+services:
+  keycloak-db:
+    image: postgres:16
+    container_name: support-keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: support-keycloak
+    restart: unless-stopped
+    depends_on:
+      - keycloak-db
+    command:
+      - ${KEYCLOAK_START_CMD:-start-dev}
+      - --import-realm
+      - --http-enabled=true
+      - --proxy-headers=xforwarded
+      - --hostname=https://${SSO_HOST:-sso.example.com}
+      - --hostname-strict=${KEYCLOAK_HOSTNAME_STRICT:-false}
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-db
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: ${KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+    volumes:
+      - ./config/keycloak:/opt/keycloak/data/import:ro
+    networks:
+      - backend
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: support-vaultwarden
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${VAULTWARDEN_DOMAIN}
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      WEBSOCKET_ENABLED: "true"
+    volumes:
+      - vaultwarden-data:/data
+    networks:
+      - backend
+
+  bookstack-db:
+    image: mariadb:11.4
+    container_name: support-bookstack-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${BOOKSTACK_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${BOOKSTACK_DB_DATABASE}
+      MYSQL_USER: ${BOOKSTACK_DB_USER}
+      MYSQL_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
+    volumes:
+      - bookstack-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:latest
+    container_name: support-bookstack
+    restart: unless-stopped
+    depends_on:
+      - bookstack-db
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      APP_URL: ${BOOKSTACK_APP_URL}
+      APP_KEY: ${BOOKSTACK_APP_KEY}
+      DB_HOST: bookstack-db
+      DB_PORT: 3306
+      DB_DATABASE: ${BOOKSTACK_DB_DATABASE}
+      DB_USERNAME: ${BOOKSTACK_DB_USER}
+      DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
+      AUTH_METHOD: ${BOOKSTACK_AUTH_METHOD}
+      AUTH_AUTO_INITIATE: ${BOOKSTACK_AUTH_AUTO_INITIATE}
+      OIDC_NAME: ${BOOKSTACK_OIDC_NAME}
+      OIDC_DISPLAY_NAME_CLAIMS: ${BOOKSTACK_OIDC_DISPLAY_NAME_CLAIMS}
+      OIDC_CLIENT_ID: ${BOOKSTACK_OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${BOOKSTACK_OIDC_CLIENT_SECRET}
+      OIDC_ISSUER: ${BOOKSTACK_OIDC_ISSUER}
+      OIDC_ISSUER_DISCOVER: ${BOOKSTACK_OIDC_ISSUER_DISCOVER}
+      OIDC_AUTH_ENDPOINT: ${BOOKSTACK_OIDC_AUTH_ENDPOINT}
+      OIDC_TOKEN_ENDPOINT: ${BOOKSTACK_OIDC_TOKEN_ENDPOINT}
+      OIDC_USERINFO_ENDPOINT: ${BOOKSTACK_OIDC_USERINFO_ENDPOINT}
+      OIDC_PUBLIC_KEY: ${BOOKSTACK_OIDC_PUBLIC_KEY}
+      OIDC_END_SESSION_ENDPOINT: ${BOOKSTACK_OIDC_END_SESSION_ENDPOINT}
+    volumes:
+      - bookstack-data:/config
+      - ./nginx/certs:/custom-certs:ro
+      - ./config/bookstack/custom-cont-init.d:/custom-cont-init.d:ro
+    extra_hosts:
+      - "${SSO_HOST:-sso.example.com}:host-gateway"
+      - "${DOCS_HOST:-docs.example.com}:host-gateway"
+    networks:
+      - backend
+
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: support-guacd
+    restart: unless-stopped
+    networks:
+      - backend
+
+  guacamole-db:
+    image: postgres:16
+    container_name: support-guacamole-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${GUACAMOLE_DB_NAME}
+      POSTGRES_USER: ${GUACAMOLE_DB_USER}
+      POSTGRES_PASSWORD: ${GUACAMOLE_DB_PASSWORD}
+    volumes:
+      - guacamole-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  guacamole-db-init:
+    image: postgres:16
+    container_name: support-guacamole-db-init
+    depends_on:
+      - guacamole-db
+    command: >
+      /bin/sh -c "
+      until pg_isready -h guacamole-db -p 5432 -U ${GUACAMOLE_DB_USER}; do sleep 2; done &&
+      PGPASSWORD=${GUACAMOLE_DB_PASSWORD} psql -h guacamole-db -U ${GUACAMOLE_DB_USER} -d ${GUACAMOLE_DB_NAME} -f /initdb.sql
+      "
+    volumes:
+      - ./config/guacamole/initdb.sql:/initdb.sql:ro
+    restart: "no"
+    networks:
+      - backend
+
+  guacamole:
+    image: guacamole/guacamole:1.5.5
+    container_name: support-guacamole
+    restart: unless-stopped
+    depends_on:
+      - guacd
+      - guacamole-db
+      - guacamole-db-init
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: guacamole-db
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: ${GUACAMOLE_DB_NAME}
+      POSTGRESQL_USER: ${GUACAMOLE_DB_USER}
+      POSTGRESQL_PASSWORD: ${GUACAMOLE_DB_PASSWORD}
+      EXTENSION_PRIORITY: "openid,postgresql"
+      OPENID_ISSUER: ${GUACAMOLE_OPENID_ISSUER}
+      OPENID_CLIENT_ID: ${GUACAMOLE_OPENID_CLIENT_ID}
+      OPENID_CLIENT_SECRET: ${GUACAMOLE_OPENID_CLIENT_SECRET}
+      OPENID_REDIRECT_URI: ${GUACAMOLE_OPENID_REDIRECT_URI}
+      OPENID_AUTHORIZATION_ENDPOINT: ${GUACAMOLE_OPENID_AUTHORIZATION_ENDPOINT}
+      OPENID_JWKS_ENDPOINT: ${GUACAMOLE_OPENID_JWKS_ENDPOINT}
+      OPENID_TOKEN_ENDPOINT: ${GUACAMOLE_OPENID_TOKEN_ENDPOINT}
+      OPENID_LOGOUT_ENDPOINT: ${GUACAMOLE_OPENID_LOGOUT_ENDPOINT}
+      OPENID_USERNAME_CLAIM_TYPE: preferred_username
+      OPENID_SCOPE: "openid profile email"
+    networks:
+      - backend
+
+  headscale:
+    image: headscale/headscale:0.28.0
+    container_name: support-headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - headscale-data:/var/lib/headscale
+      - ./config/headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - ./config/headscale/acl.hujson:/etc/headscale/acl.hujson:ro
+    networks:
+      - backend
+
+  headscale-ui:
+    image: ghcr.io/gurucomputing/headscale-ui:latest
+    container_name: support-headscale-ui
+    restart: unless-stopped
+    depends_on:
+      - headscale
+    networks:
+      - backend
+
+  osticket-db:
+    image: mariadb:11.4
+    container_name: support-osticket-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${OSTICKET_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${OSTICKET_DB_NAME}
+      MYSQL_USER: ${OSTICKET_DB_USER}
+      MYSQL_PASSWORD: ${OSTICKET_DB_PASSWORD}
+    volumes:
+      - osticket-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  espocrm-db:
+    image: mariadb:11.4
+    container_name: support-espocrm-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${ESPOCRM_DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${ESPOCRM_DB_NAME}
+      MARIADB_USER: ${ESPOCRM_DB_USER}
+      MARIADB_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+    volumes:
+      - espocrm-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  espocrm:
+    image: espocrm/espocrm:latest
+    container_name: support-espocrm
+    restart: unless-stopped
+    depends_on:
+      - espocrm-db
+    environment:
+      ESPOCRM_SITE_URL: ${ESPOCRM_SITE_URL}
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_PORT: 3306
+      ESPOCRM_DATABASE_NAME: ${ESPOCRM_DB_NAME}
+      ESPOCRM_DATABASE_USER: ${ESPOCRM_DB_USER}
+      ESPOCRM_DATABASE_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+      ESPOCRM_ADMIN_USERNAME: ${ESPOCRM_ADMIN_USERNAME}
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD}
+      ESPOCRM_LANGUAGE: ${ESPOCRM_LANGUAGE}
+    volumes:
+      - espocrm-data:/var/www/html
+    networks:
+      - backend
+
+  osticket:
+    image: devinsolutions/osticket:latest
+    container_name: support-osticket
+    restart: unless-stopped
+    depends_on:
+      - osticket-db
+    environment:
+      MYSQL_HOST: osticket-db
+      MYSQL_DATABASE: ${OSTICKET_DB_NAME}
+      MYSQL_USER: ${OSTICKET_DB_USER}
+      MYSQL_PASSWORD: ${OSTICKET_DB_PASSWORD}
+      INSTALL_SECRET: ${OSTICKET_INSTALL_SECRET}
+      INSTALL_NAME: ${OSTICKET_INSTALL_NAME}
+      INSTALL_EMAIL: ${OSTICKET_INSTALL_EMAIL}
+      ADMIN_FIRSTNAME: ${OSTICKET_ADMIN_FIRSTNAME}
+      ADMIN_LASTNAME: ${OSTICKET_ADMIN_LASTNAME}
+      ADMIN_EMAIL: ${OSTICKET_ADMIN_EMAIL}
+      ADMIN_USERNAME: ${OSTICKET_ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${OSTICKET_ADMIN_PASSWORD}
+      SUPPORT_HOST: ${SUPPORT_HOST:-example.com}
+    volumes:
+      - ./config/osticket/plugins/auth-oauth2:/var/www/html/include/plugins/auth-oauth2:ro
+      - ./config/osticket/plugins/bonescreen-theme:/var/www/html/include/plugins/bonescreen-theme:ro
+    networks:
+      - backend
+
+  oauth2-proxy-meshweb:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: support-oauth2-proxy-meshweb
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+      - headscale-ui
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${MESHWEB_OIDC_ISSUER_URL}
+      OAUTH2_PROXY_CLIENT_ID: ${MESHWEB_OIDC_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${MESHWEB_OIDC_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${MESHWEB_OIDC_COOKIE_SECRET}
+      OAUTH2_PROXY_REDIRECT_URL: ${MESHWEB_OIDC_REDIRECT_URL}
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_UPSTREAMS: "http://headscale-ui:8080"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_SCOPE: "openid profile email"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+      OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY: ${MESHWEB_OIDC_SSL_INSECURE_SKIP_VERIFY:-false}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: ".${BASE_DOMAIN:-example.com}"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "false"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "false"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "false"
+      OAUTH2_PROXY_SESSION_COOKIE_MINIMAL: "true"
+    networks:
+      - backend
+
+  oauth2-proxy-portal:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: support-oauth2-proxy-portal
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${MESHWEB_OIDC_ISSUER_URL}
+      OAUTH2_PROXY_CLIENT_ID: ${MESHWEB_OIDC_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${MESHWEB_OIDC_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${SUPPORT_PORTAL_OIDC_COOKIE_SECRET:-${MESHWEB_OIDC_COOKIE_SECRET}}
+      OAUTH2_PROXY_REDIRECT_URL: https://${SUPPORT_HOST:-example.com}/oauth2/callback
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_UPSTREAMS: "static://202"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_SCOPE: "openid profile email"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+      OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY: ${SUPPORT_PORTAL_OIDC_SSL_INSECURE_SKIP_VERIFY:-${MESHWEB_OIDC_SSL_INSECURE_SKIP_VERIFY:-false}}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: ".${BASE_DOMAIN:-example.com}"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "false"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "false"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "false"
+      OAUTH2_PROXY_SESSION_COOKIE_MINIMAL: "true"
+    networks:
+      - backend
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: support-uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - uptime-kuma-data:/app/data
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: support-nginx
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+      - vaultwarden
+      - bookstack
+      - guacamole
+      - headscale
+      - headscale-ui
+      - osticket
+      - espocrm
+      - oauth2-proxy-meshweb
+      - oauth2-proxy-portal
+      - uptime-kuma
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-example.com}
+      SUPPORT_HOST: ${SUPPORT_HOST:-example.com}
+      SSO_HOST: ${SSO_HOST:-sso.example.com}
+      VAULT_HOST: ${VAULT_HOST:-vault.example.com}
+      DOCS_HOST: ${DOCS_HOST:-docs.example.com}
+      REMOTE_HOST: ${REMOTE_HOST:-remote.example.com}
+      MESH_HOST: ${MESH_HOST:-mesh.example.com}
+      MESH_WEB_HOST: ${MESH_WEB_HOST:-mesh-web.example.com}
+      TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
+      CRM_HOST: ${CRM_HOST:-crm.example.com}
+      STATUS_HOST: ${STATUS_HOST:-status.example.com}
+      ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
+      LETSENCRYPT_PRIMARY_DOMAIN: ${LETSENCRYPT_PRIMARY_DOMAIN:-example.com}
+    command: >
+      /bin/sh -c '
+      set -eu;
+      BASE_DOMAIN="$${BASE_DOMAIN:-example.com}";
+      SUPPORT_HOST="$${SUPPORT_HOST:-support.$${BASE_DOMAIN}}";
+      SSO_HOST="$${SSO_HOST:-sso.$${BASE_DOMAIN}}";
+      VAULT_HOST="$${VAULT_HOST:-vault.$${BASE_DOMAIN}}";
+      DOCS_HOST="$${DOCS_HOST:-docs.$${BASE_DOMAIN}}";
+      REMOTE_HOST="$${REMOTE_HOST:-remote.$${BASE_DOMAIN}}";
+      MESH_HOST="$${MESH_HOST:-mesh.$${BASE_DOMAIN}}";
+      MESH_WEB_HOST="$${MESH_WEB_HOST:-mesh-web.$${BASE_DOMAIN}}";
+      TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
+      CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
+      STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$STATUS_HOST";
+
+      render_conf() {
+        sed \
+          -e "s|__SSL_CERT_PATH__|$$CERT_CRT|g" \
+          -e "s|__SSL_KEY_PATH__|$$CERT_KEY|g" \
+          -e "s|__ALL_HOSTS__|$$ALL_HOSTS|g" \
+          -e "s|__SUPPORT_HOST__|$$SUPPORT_HOST|g" \
+          -e "s|__SSO_HOST__|$$SSO_HOST|g" \
+          -e "s|__VAULT_HOST__|$$VAULT_HOST|g" \
+          -e "s|__DOCS_HOST__|$$DOCS_HOST|g" \
+          -e "s|__REMOTE_HOST__|$$REMOTE_HOST|g" \
+          -e "s|__MESH_HOST__|$$MESH_HOST|g" \
+          -e "s|__MESH_WEB_HOST__|$$MESH_WEB_HOST|g" \
+          -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
+          -e "s|__CRM_HOST__|$$CRM_HOST|g" \
+          -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
+          /etc/nginx/templates/support-stack.conf.template > /etc/nginx/conf.d/support-stack.conf;
+      }
+
+      CERT_CRT="/etc/nginx/certs/support-stack.crt";
+      CERT_KEY="/etc/nginx/certs/support-stack.key";
+      if [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem" ]; then
+        CERT_CRT="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem";
+        CERT_KEY="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem";
+      fi;
+      render_conf;
+      (
+        while [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ]; do
+          if [ -f /var/www/certbot/.reload-nginx ]; then
+            rm -f /var/www/certbot/.reload-nginx;
+            CERT_CRT="/etc/nginx/certs/support-stack.crt";
+            CERT_KEY="/etc/nginx/certs/support-stack.key";
+            if [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem" ]; then
+              CERT_CRT="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem";
+              CERT_KEY="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem";
+            fi;
+            render_conf;
+            nginx -s reload || true;
+          fi;
+          sleep 20;
+        done
+      ) &
+      exec nginx -g "daemon off;"
+      '
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - letsencrypt-data:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      backend:
+        aliases:
+          - ${SUPPORT_HOST:-example.com}
+          - ${SSO_HOST:-sso.example.com}
+          - ${VAULT_HOST:-vault.example.com}
+          - ${DOCS_HOST:-docs.example.com}
+          - ${REMOTE_HOST:-remote.example.com}
+          - ${MESH_HOST:-mesh.example.com}
+          - ${MESH_WEB_HOST:-mesh-web.example.com}
+          - ${TICKETS_HOST:-tickets.example.com}
+          - ${CRM_HOST:-crm.example.com}
+          - ${STATUS_HOST:-status.example.com}
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: support-certbot
+    restart: unless-stopped
+    entrypoint: /bin/sh
+    depends_on:
+      - nginx
+    environment:
+      ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
+      LETSENCRYPT_DOMAINS: ${LETSENCRYPT_DOMAINS:-}
+      LETSENCRYPT_PRIMARY_DOMAIN: ${LETSENCRYPT_PRIMARY_DOMAIN:-example.com}
+    command: >
+      -c '
+      set -eu;
+      if [ "${ENABLE_LETSENCRYPT:-false}" != "true" ]; then
+        echo "Let'"'"'s Encrypt disabled (ENABLE_LETSENCRYPT=false).";
+        exec tail -f /dev/null;
+      fi;
+      if [ -z "${LETSENCRYPT_EMAIL:-}" ] || [ -z "${LETSENCRYPT_DOMAINS:-}" ]; then
+        echo "Missing LETSENCRYPT_EMAIL or LETSENCRYPT_DOMAINS.";
+        exit 1;
+      fi;
+      DOMAINS_ARGS="";
+      OLDIFS="$$IFS";
+      IFS=",";
+      for d in ${LETSENCRYPT_DOMAINS}; do
+        d_trim="$$(echo "$$d" | xargs)";
+        [ -n "$$d_trim" ] && DOMAINS_ARGS="$$DOMAINS_ARGS -d $$d_trim";
+      done;
+      IFS="$$OLDIFS";
+      if [ ! -f "/etc/letsencrypt/live/${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ]; then
+        certbot certonly --webroot -w /var/www/certbot $$DOMAINS_ARGS --email "${LETSENCRYPT_EMAIL}" --agree-tos --no-eff-email;
+        touch /var/www/certbot/.reload-nginx;
+      fi;
+      while true; do
+        certbot renew --webroot -w /var/www/certbot --deploy-hook "touch /var/www/certbot/.reload-nginx";
+        sleep 12h;
+      done
+      '
+    volumes:
+      - letsencrypt-data:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    networks:
+      - backend
+
+volumes:
+  keycloak-db-data:
+  vaultwarden-data:
+  bookstack-db-data:
+  bookstack-data:
+  guacamole-db-data:
+  osticket-db-data:
+  espocrm-db-data:
+  espocrm-data:
+  headscale-data:
+  uptime-kuma-data:
+  letsencrypt-data:
+  certbot-www:
+
+networks:
+  backend:
+    name: support-stack-backend

@@ -1,0 +1,146 @@
+{
+  "realm": "__KEYCLOAK_REALM__",
+  "enabled": true,
+  "displayName": "Support Realm",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "roles": {
+    "realm": [
+      { "name": "platform-admin", "description": "Platform administrators" },
+      { "name": "support-engineer", "description": "Support engineers" },
+      { "name": "auditor", "description": "Read-only auditors" }
+    ]
+  },
+  "groups": [
+    {
+      "name": "platform-admin",
+      "realmRoles": ["platform-admin"]
+    },
+    {
+      "name": "support-engineer",
+      "realmRoles": ["support-engineer"]
+    },
+    {
+      "name": "auditor",
+      "realmRoles": ["auditor"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "guacamole",
+      "name": "Guacamole",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "secret": "8073b68b01357094b83f44ed4b84b504ebae9e8da4f66161f8392195b1f6f5c0",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__REMOTE_HOST__/guacamole/*",
+        "http://__REMOTE_HOST__/guacamole/*"
+      ],
+      "webOrigins": [
+        "https://__REMOTE_HOST__",
+        "http://__REMOTE_HOST__"
+      ]
+    },
+    {
+      "clientId": "bookstack",
+      "name": "BookStack",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "464eebc16caf8a3af78afde5cff22287685fd09eb25b3b0899c918d0e56ee3cf",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__DOCS_HOST__/*",
+        "http://__DOCS_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__DOCS_HOST__",
+        "http://__DOCS_HOST__"
+      ]
+    },
+    {
+      "clientId": "vaultwarden-proxy",
+      "name": "Vaultwarden OAuth2 Proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "94c46946387b64dc0f39e07e3088f693d95a7544dd2789c50e690959d4b4466d",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__VAULT_HOST__/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://__VAULT_HOST__"
+      ]
+    },
+    {
+      "clientId": "mesh-web-ui",
+      "name": "Headscale UI OAuth2 Proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "2b98884403fbc5f612a53a5b1af287e93e6b5fffba6a9de3ae9f5d9bb247c9d2",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__MESH_WEB_HOST__/oauth2/callback",
+        "https://__SUPPORT_HOST__/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://__MESH_WEB_HOST__",
+        "https://__SUPPORT_HOST__"
+      ]
+    },
+    {
+      "clientId": "osticket",
+      "name": "osTicket",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "3fd0f1934e8c5ad6b947af3bf7e0f525ce6478b7706e6876ca0f0bfaa4a6f2f2",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__TICKETS_HOST__/*",
+        "http://__TICKETS_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__TICKETS_HOST__",
+        "http://__TICKETS_HOST__"
+      ]
+    },
+    {
+      "clientId": "espocrm",
+      "name": "EspoCRM",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "52f858a1c77a33691ca69d730b931913d155d87c7f113cfb40cc6b1829027f04",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__CRM_HOST__/*",
+        "http://__CRM_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__CRM_HOST__",
+        "http://__CRM_HOST__"
+      ]
+    }
+  ]
+}

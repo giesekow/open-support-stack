@@ -1,0 +1,17 @@
+{
+  // Quick-test permissive ACL. Tighten before production.
+  "groups": {
+    "group:support": []
+  },
+  "tagOwners": {
+    "tag:customer": ["group:support"],
+    "tag:support": ["group:support"]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"],
+    },
+  ],
+}
