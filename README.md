@@ -54,7 +54,10 @@ docker compose logs -f nginx keycloak
 ./scripts/harden_env_production.sh .env.production
 ```
 3. Review `.env.production` and adjust domain-specific values.
-4. For automatic TLS via Let's Encrypt set:
+4. Set nginx mode:
+   - `NGINX_MODE=https` to serve HTTPS directly from nginx.
+   - `NGINX_MODE=http` if TLS is terminated upstream (for example HAProxy/pfSense).
+5. For automatic TLS via Let's Encrypt set (only when `NGINX_MODE=https`):
    - `ENABLE_LETSENCRYPT=true`
    - `LETSENCRYPT_EMAIL=<your-email>`
    - `LETSENCRYPT_DOMAINS=<comma-separated domains>`
@@ -83,7 +86,7 @@ docker compose --env-file .env.production pull
 ```bash
 docker compose --env-file .env.production up -d
 ```
-4. If `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
+4. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
 ```bash
 docker compose --env-file .env.production logs --tail=120 certbot nginx
 ```

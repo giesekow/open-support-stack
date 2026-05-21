@@ -369,6 +369,7 @@ services:
       TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
       CRM_HOST: ${CRM_HOST:-crm.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
+      NGINX_MODE: ${NGINX_MODE:-https}
       ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
       LETSENCRYPT_PRIMARY_DOMAIN: ${LETSENCRYPT_PRIMARY_DOMAIN:-example.com}
     command: >
@@ -385,7 +386,18 @@ services:
       TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
       CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
+      NGINX_MODE="$${NGINX_MODE:-https}";
       ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$STATUS_HOST";
+
+      if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
+        echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
+        exit 1;
+      fi;
+
+      TEMPLATE_PATH="/etc/nginx/templates/support-stack.conf.template";
+      if [ "$$NGINX_MODE" = "http" ]; then
+        TEMPLATE_PATH="/etc/nginx/templates/support-stack.http.conf.template";
+      fi;
 
       render_conf() {
         sed \
@@ -402,18 +414,18 @@ services:
           -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
           -e "s|__CRM_HOST__|$$CRM_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
-          /etc/nginx/templates/support-stack.conf.template > /etc/nginx/conf.d/support-stack.conf;
+          "$$TEMPLATE_PATH" > /etc/nginx/conf.d/support-stack.conf;
       }
 
       CERT_CRT="/etc/nginx/certs/support-stack.crt";
       CERT_KEY="/etc/nginx/certs/support-stack.key";
-      if [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem" ]; then
+      if [ "$$NGINX_MODE" = "https" ] && [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem" ]; then
         CERT_CRT="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem";
         CERT_KEY="/etc/letsencrypt/live/$${LETSENCRYPT_PRIMARY_DOMAIN}/privkey.pem";
       fi;
       render_conf;
       (
-        while [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ]; do
+        while [ "$$NGINX_MODE" = "https" ] && [ "$${ENABLE_LETSENCRYPT:-false}" = "true" ]; do
           if [ -f /var/www/certbot/.reload-nginx ]; then
             rm -f /var/www/certbot/.reload-nginx;
             CERT_CRT="/etc/nginx/certs/support-stack.crt";
@@ -461,6 +473,7 @@ services:
     depends_on:
       - nginx
     environment:
+      NGINX_MODE: ${NGINX_MODE:-https}
       ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
       LETSENCRYPT_DOMAINS: ${LETSENCRYPT_DOMAINS:-}
@@ -468,6 +481,10 @@ services:
     command: >
       -c '
       set -eu;
+      if [ "${NGINX_MODE:-https}" != "https" ]; then
+        echo "Let'"'"'s Encrypt disabled (NGINX_MODE=${NGINX_MODE:-https}).";
+        exec tail -f /dev/null;
+      fi;
       if [ "${ENABLE_LETSENCRYPT:-false}" != "true" ]; then
         echo "Let'"'"'s Encrypt disabled (ENABLE_LETSENCRYPT=false).";
         exec tail -f /dev/null;
