@@ -1,0 +1,37 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Local agent/tooling state
+.agents/
+.codex/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Generated config artifacts (rendered from templates/scripts)
+config/headscale/config.yaml
+config/keycloak/realm-support.json
+nginx/conf.d/support-stack.conf
+nginx/html/index.html
+
+# TLS certs/keys (generated locally)
+nginx/certs/*.key
+nginx/certs/*.crt
+nginx/certs/*.csr
+nginx/certs/*.pem
+nginx/certs/*.srl
+
+# Runtime data / logs / temp
+*.log
+tmp/
+*.tmp
+
+# Docker override/local files
+docker-compose.override.yml
