@@ -240,6 +240,52 @@ services:
     networks:
       - backend
 
+  seafile-db:
+    image: mariadb:11.4
+    container_name: support-seafile-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${SEAFILE_DB_NAME}
+      MYSQL_USER: ${SEAFILE_DB_USER}
+      MYSQL_PASSWORD: ${SEAFILE_DB_PASSWORD}
+    volumes:
+      - seafile-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  seafile-memcached:
+    image: memcached:1.6-alpine
+    container_name: support-seafile-memcached
+    restart: unless-stopped
+    command: memcached -m 256
+    networks:
+      - backend
+
+  seafile:
+    image: seafileltd/seafile-mc:latest
+    container_name: support-seafile
+    restart: unless-stopped
+    depends_on:
+      - seafile-db
+      - seafile-memcached
+    environment:
+      DB_HOST: seafile-db
+      DB_ROOT_PASSWD: ${SEAFILE_DB_ROOT_PASSWORD}
+      DB_USER: ${SEAFILE_DB_USER}
+      DB_PASSWORD: ${SEAFILE_DB_PASSWORD}
+      DB_NAME: ${SEAFILE_DB_NAME}
+      TIME_ZONE: ${TZ}
+      SEAFILE_ADMIN_EMAIL: ${SEAFILE_ADMIN_EMAIL}
+      SEAFILE_ADMIN_PASSWORD: ${SEAFILE_ADMIN_PASSWORD}
+      SEAFILE_SERVER_HOSTNAME: ${FILES_HOST:-files.example.com}
+      SEAFILE_SERVER_LETSENCRYPT: "false"
+      MEMCACHED_HOST: seafile-memcached
+    volumes:
+      - seafile-data:/shared
+    networks:
+      - backend
+
   osticket:
     image: devinsolutions/osticket:latest
     container_name: support-osticket
@@ -361,6 +407,7 @@ services:
       - headscale-ui
       - osticket
       - espocrm
+      - seafile
       - oauth2-proxy-meshweb
       - oauth2-proxy-portal
       - uptime-kuma
@@ -375,6 +422,7 @@ services:
       MESH_WEB_HOST: ${MESH_WEB_HOST:-mesh-web.example.com}
       TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
       CRM_HOST: ${CRM_HOST:-crm.example.com}
+      FILES_HOST: ${FILES_HOST:-files.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
       NGINX_MODE: ${NGINX_MODE:-https}
       ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
@@ -392,9 +440,10 @@ services:
       MESH_WEB_HOST="$${MESH_WEB_HOST:-mesh-web.$${BASE_DOMAIN}}";
       TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
       CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
+      FILES_HOST="$${FILES_HOST:-files.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
       NGINX_MODE="$${NGINX_MODE:-https}";
-      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$STATUS_HOST";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$FILES_HOST $$STATUS_HOST";
 
       if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
         echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
@@ -420,6 +469,7 @@ services:
           -e "s|__MESH_WEB_HOST__|$$MESH_WEB_HOST|g" \
           -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
           -e "s|__CRM_HOST__|$$CRM_HOST|g" \
+          -e "s|__FILES_HOST__|$$FILES_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
           "$$TEMPLATE_PATH" > /etc/nginx/conf.d/support-stack.conf;
       }
@@ -469,6 +519,7 @@ services:
           - ${MESH_WEB_HOST:-mesh-web.example.com}
           - ${TICKETS_HOST:-tickets.example.com}
           - ${CRM_HOST:-crm.example.com}
+          - ${FILES_HOST:-files.example.com}
           - ${STATUS_HOST:-status.example.com}
 
   certbot:
@@ -531,6 +582,8 @@ volumes:
   osticket-db-data:
   espocrm-db-data:
   espocrm-data:
+  seafile-db-data:
+  seafile-data:
   headscale-data:
   uptime-kuma-data:
   letsencrypt-data:

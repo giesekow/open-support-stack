@@ -157,6 +157,25 @@
         "https://__CRM_HOST__",
         "http://__CRM_HOST__"
       ]
+    },
+    {
+      "clientId": "seafile",
+      "name": "Seafile",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "41bebd14c90b197c879925d5ae8601b3fa7f583316d9961b",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__FILES_HOST__/*",
+        "http://__FILES_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__FILES_HOST__",
+        "http://__FILES_HOST__"
+      ]
     }
   ]
 }

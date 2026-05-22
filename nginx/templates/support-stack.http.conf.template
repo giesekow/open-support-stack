@@ -81,6 +81,23 @@ server {
 
 server {
     listen 80;
+    server_name __FILES_HOST__;
+    resolver 127.0.0.11 valid=30s;
+
+    client_max_body_size 2g;
+
+    location / {
+        set $upstream_files seafile:80;
+        proxy_pass http://$upstream_files;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+
+server {
+    listen 80;
     server_name __STATUS_HOST__;
     resolver 127.0.0.11 valid=30s;
 

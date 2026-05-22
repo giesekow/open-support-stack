@@ -123,6 +123,7 @@ docker compose --env-file .env.production logs --tail=120
    - `https://<MESH_WEB_HOST>`
    - `https://<TICKETS_HOST>`
    - `https://<CRM_HOST>`
+   - `https://<FILES_HOST>`
    - `https://<STATUS_HOST>`
 
 ### Headscale UI API URL

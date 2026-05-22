@@ -43,6 +43,7 @@ MESH_HOST="$(env_get MESH_HOST "mesh.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
+FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
 KEYCLOAK_REALM="$(env_get KEYCLOAK_REALM "support")"
 PORTAL_OIDC_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")")"
@@ -60,6 +61,7 @@ sed \
   -e "s|__MESH_WEB_HOST__|$(escape_sed_replacement "$MESH_WEB_HOST")|g" \
   -e "s|__TICKETS_HOST__|$(escape_sed_replacement "$TICKETS_HOST")|g" \
   -e "s|__CRM_HOST__|$(escape_sed_replacement "$CRM_HOST")|g" \
+  -e "s|__FILES_HOST__|$(escape_sed_replacement "$FILES_HOST")|g" \
   -e "s|__STATUS_HOST__|$(escape_sed_replacement "$STATUS_HOST")|g" \
   -e "s|__KEYCLOAK_REALM__|$(escape_sed_replacement "$KEYCLOAK_REALM")|g" \
   -e "s|__PORTAL_OIDC_CLIENT_ID__|$(escape_sed_replacement "$PORTAL_OIDC_CLIENT_ID")|g" \

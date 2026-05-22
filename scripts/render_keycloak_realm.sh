@@ -51,6 +51,7 @@ REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
+FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
 
 KEYCLOAK_REALM_ESCAPED="$(escape_sed_replacement "$KEYCLOAK_REALM")"
 SUPPORT_HOST_ESCAPED="$(escape_sed_replacement "$SUPPORT_HOST")"
@@ -61,6 +62,7 @@ REMOTE_HOST_ESCAPED="$(escape_sed_replacement "$REMOTE_HOST")"
 MESH_WEB_HOST_ESCAPED="$(escape_sed_replacement "$MESH_WEB_HOST")"
 TICKETS_HOST_ESCAPED="$(escape_sed_replacement "$TICKETS_HOST")"
 CRM_HOST_ESCAPED="$(escape_sed_replacement "$CRM_HOST")"
+FILES_HOST_ESCAPED="$(escape_sed_replacement "$FILES_HOST")"
 
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
@@ -75,6 +77,7 @@ sed \
   -e "s|__MESH_WEB_HOST__|${MESH_WEB_HOST_ESCAPED}|g" \
   -e "s|__TICKETS_HOST__|${TICKETS_HOST_ESCAPED}|g" \
   -e "s|__CRM_HOST__|${CRM_HOST_ESCAPED}|g" \
+  -e "s|__FILES_HOST__|${FILES_HOST_ESCAPED}|g" \
   "$TPL" > "$TMP_OUT"
 
 if grep -q '__[A-Z0-9_]\+__' "$TMP_OUT"; then
