@@ -326,7 +326,10 @@ services:
       PENPOT_REDIS_URI: redis://penpot-redis:6379/0
       PENPOT_OIDC_CLIENT_ID: ${PENPOT_OIDC_CLIENT_ID}
       PENPOT_OIDC_CLIENT_SECRET: ${PENPOT_OIDC_CLIENT_SECRET}
-      PENPOT_OIDC_BASE_URI: https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}
+      PENPOT_OIDC_BASE_URI: ${PENPOT_OIDC_BASE_URI:-https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}}
+      PENPOT_OIDC_AUTH_URI: ${PENPOT_OIDC_AUTH_URI:-https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/auth}
+      PENPOT_OIDC_TOKEN_URI: ${PENPOT_OIDC_TOKEN_URI:-http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/token}
+      PENPOT_OIDC_USER_URI: ${PENPOT_OIDC_USER_URI:-http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/userinfo}
       PENPOT_OIDC_SCOPES: "openid profile email"
       PENPOT_OIDC_NAME_ATTR: name
       PENPOT_OIDC_EMAIL_ATTR: email
