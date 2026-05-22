@@ -100,7 +100,23 @@
         "https://__SUPPORT_HOST__/oauth2/callback"
       ],
       "webOrigins": [
-        "https://__MESH_WEB_HOST__",
+        "https://__MESH_WEB_HOST__"
+      ]
+    },
+    {
+      "clientId": "support-portal",
+      "name": "Support Portal OAuth2 Proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "6f54b32d86e081e265d2e672cb3784f9ddcc599c70b8587f1f8dbef974ac69f0",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__SUPPORT_HOST__/oauth2/callback"
+      ],
+      "webOrigins": [
         "https://__SUPPORT_HOST__"
       ]
     },

@@ -45,6 +45,7 @@ TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
 KEYCLOAK_REALM="$(env_get KEYCLOAK_REALM "support")"
+PORTAL_OIDC_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")")"
 
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
@@ -61,6 +62,7 @@ sed \
   -e "s|__CRM_HOST__|$(escape_sed_replacement "$CRM_HOST")|g" \
   -e "s|__STATUS_HOST__|$(escape_sed_replacement "$STATUS_HOST")|g" \
   -e "s|__KEYCLOAK_REALM__|$(escape_sed_replacement "$KEYCLOAK_REALM")|g" \
+  -e "s|__PORTAL_OIDC_CLIENT_ID__|$(escape_sed_replacement "$PORTAL_OIDC_CLIENT_ID")|g" \
   "$TPL" > "$TMP_OUT"
 
 if grep -q '__[A-Z0-9_]\+__' "$TMP_OUT"; then

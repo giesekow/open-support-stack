@@ -30,7 +30,8 @@ REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
-CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
+MESHWEB_CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
+PORTAL_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "support-portal")"
 GUAC_CLIENT_ID="$(env_get GUACAMOLE_OPENID_CLIENT_ID "guacamole")"
 BOOKSTACK_CLIENT_ID="$(env_get BOOKSTACK_OIDC_CLIENT_ID "bookstack")"
 OSTICKET_CLIENT_ID="$(env_get OSTICKET_OIDC_CLIENT_ID "osticket")"
@@ -50,20 +51,36 @@ docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh config credentials \
   --user "$KEYCLOAK_ADMIN_USER" \
   --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null
 
-CLIENT_UUID="$(
-  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$CLIENT_ID" --fields id --format csv --noquotes \
+MESHWEB_CLIENT_UUID="$(
+  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$MESHWEB_CLIENT_ID" --fields id --format csv --noquotes \
     | tr -d '\r' | tail -n 1
 )"
 
-if [[ -z "$CLIENT_UUID" || "$CLIENT_UUID" == "id" ]]; then
-  echo "Client '$CLIENT_ID' not found in realm '$REALM'"
+if [[ -z "$MESHWEB_CLIENT_UUID" || "$MESHWEB_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$MESHWEB_CLIENT_ID' not found in realm '$REALM'"
   exit 1
 fi
 
-echo "==> Updating redirect URIs/web origins for client '$CLIENT_ID'"
-docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$CLIENT_UUID" -r "$REALM" \
-  -s "redirectUris=[\"https://${MESH_WEB_HOST}/oauth2/callback\",\"https://${SUPPORT_HOST}/oauth2/callback\"]" \
-  -s "webOrigins=[\"https://${MESH_WEB_HOST}\",\"https://${SUPPORT_HOST}\"]" \
+echo "==> Updating redirect URIs/web origins for client '$MESHWEB_CLIENT_ID'"
+docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$MESHWEB_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${MESH_WEB_HOST}/oauth2/callback\"]" \
+  -s "webOrigins=[\"https://${MESH_WEB_HOST}\"]" \
+  >/dev/null
+
+PORTAL_CLIENT_UUID="$(
+  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$PORTAL_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$PORTAL_CLIENT_UUID" || "$PORTAL_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$PORTAL_CLIENT_ID' not found in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$PORTAL_CLIENT_ID'"
+docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$PORTAL_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${SUPPORT_HOST}/oauth2/callback\"]" \
+  -s "webOrigins=[\"https://${SUPPORT_HOST}\"]" \
   >/dev/null
 
 GUAC_CLIENT_UUID="$(
@@ -130,8 +147,9 @@ docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$ESPO
   -s "webOrigins=[\"https://${CRM_HOST}\"]" \
   >/dev/null
 
-echo "Done. Client '$CLIENT_ID' now allows:"
+echo "Done. Client '$MESHWEB_CLIENT_ID' now allows:"
 echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
+echo "Done. Client '$PORTAL_CLIENT_ID' now allows:"
 echo "  - https://${SUPPORT_HOST}/oauth2/callback"
 echo "Done. Client '$GUAC_CLIENT_ID' now allows:"
 echo "  - https://${REMOTE_HOST}/guacamole/*"

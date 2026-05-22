@@ -66,6 +66,9 @@ docker compose logs -f nginx keycloak
    - Login URL via public HTTPS (`https://<SSO_HOST>/.../auth`)
    - Redeem/JWKS via internal Keycloak HTTP (`http://keycloak:8080/...`)
    This prevents callback `500` errors during code exchange.
+7. Keep dedicated OIDC clients:
+   - `MESHWEB_OIDC_CLIENT_ID` for mesh-web auth only.
+   - `SUPPORT_PORTAL_OIDC_CLIENT_ID` for portal auth only (recommended: `support-portal`).
 
 ### Step 2: Preflight checks
 
@@ -160,7 +163,7 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for portal, mesh-web, and guacamole.
+   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, and EspoCRM.
 2. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
 3. `./scripts/install_osticket_oauth2_plugin.sh`
