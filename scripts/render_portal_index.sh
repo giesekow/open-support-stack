@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 ENV_FILE="${1:-.env}"
 TPL="nginx/html/index.template.html"
 OUT="nginx/html/index.html"
+EXTRA_LINKS_FILE="config/portal-links.json"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[FAIL] Missing env file: $ENV_FILE"
@@ -52,6 +53,66 @@ PORTAL_OIDC_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "$(env_get MESHWE
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
 
+EXTRA_LINKS_B64="W10="
+if [[ -f "$EXTRA_LINKS_FILE" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "[FAIL] python3 is required to validate $EXTRA_LINKS_FILE"
+    exit 1
+  fi
+  if ! python3 - "$EXTRA_LINKS_FILE" <<'PY'
+import json
+import sys
+from urllib.parse import urlparse
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    raw = json.load(f)
+
+if isinstance(raw, dict):
+    links = raw.get("links", [])
+elif isinstance(raw, list):
+    links = raw
+else:
+    raise SystemExit("Top-level JSON must be an object with 'links' or an array of links")
+
+if not isinstance(links, list):
+    raise SystemExit("'links' must be an array")
+
+errors = []
+for idx, link in enumerate(links):
+    if not isinstance(link, dict):
+        errors.append(f"links[{idx}] must be an object")
+        continue
+
+    for key in ("title", "url"):
+        val = link.get(key)
+        if not isinstance(val, str) or not val.strip():
+            errors.append(f"links[{idx}].{key} is required and must be a non-empty string")
+
+    url = str(link.get("url", "")).strip()
+    if url:
+        p = urlparse(url)
+        if p.scheme not in ("http", "https") or not p.netloc:
+            errors.append(f"links[{idx}].url must be a valid http/https URL")
+
+    if "enabled" in link and not isinstance(link["enabled"], bool):
+        errors.append(f"links[{idx}].enabled must be boolean when provided")
+
+if errors:
+    raise SystemExit("Invalid portal links JSON:\n- " + "\n- ".join(errors))
+PY
+  then
+    echo "[FAIL] Invalid extra links file: $EXTRA_LINKS_FILE"
+    exit 1
+  fi
+  if ! EXTRA_LINKS_B64="$(base64 -w 0 "$EXTRA_LINKS_FILE" 2>/dev/null)"; then
+    if ! EXTRA_LINKS_B64="$(base64 "$EXTRA_LINKS_FILE" | tr -d '\n' 2>/dev/null)"; then
+      echo "[FAIL] Could not base64 encode $EXTRA_LINKS_FILE"
+      exit 1
+    fi
+  fi
+fi
+
 sed \
   -e "s|__SUPPORT_HOST__|$(escape_sed_replacement "$SUPPORT_HOST")|g" \
   -e "s|__SSO_HOST__|$(escape_sed_replacement "$SSO_HOST")|g" \
@@ -67,6 +128,7 @@ sed \
   -e "s|__STATUS_HOST__|$(escape_sed_replacement "$STATUS_HOST")|g" \
   -e "s|__KEYCLOAK_REALM__|$(escape_sed_replacement "$KEYCLOAK_REALM")|g" \
   -e "s|__PORTAL_OIDC_CLIENT_ID__|$(escape_sed_replacement "$PORTAL_OIDC_CLIENT_ID")|g" \
+  -e "s|__PORTAL_EXTRA_LINKS_B64__|$(escape_sed_replacement "$EXTRA_LINKS_B64")|g" \
   "$TPL" > "$TMP_OUT"
 
 if grep -q '__[A-Z0-9_]\+__' "$TMP_OUT"; then

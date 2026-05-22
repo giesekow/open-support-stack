@@ -134,6 +134,29 @@
       letter-spacing: 0.01em;
     }
 
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: #dff9ff;
+      background: rgba(76, 201, 240, 0.18);
+      border: 1px solid rgba(76, 201, 240, 0.48);
+      flex: 0 0 28px;
+    }
+
     .desc {
       margin: 0;
       color: var(--muted);
@@ -185,75 +208,75 @@
     </section>
 
     <p class="section-title">Operations</p>
-    <section class="grid" aria-label="Service links">
+    <section class="grid" aria-label="Service links" data-section="Operations">
       <a class="card" href="#" data-service="remote" target="_blank" rel="noopener noreferrer">
-        <p class="name">Remote Access</p>
+        <div class="card-head"><span class="icon">RDP</span><p class="name">Remote Access</p></div>
         <p class="desc">Guacamole jump-host for RDP/SSH/VNC sessions.</p>
         <p class="url" data-url="remote">remote.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="tickets" target="_blank" rel="noopener noreferrer">
-        <p class="name">Ticketing</p>
+        <div class="card-head"><span class="icon">TKT</span><p class="name">Ticketing</p></div>
         <p class="desc">osTicket portal for customer support requests.</p>
         <p class="url" data-url="tickets">tickets.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="status" target="_blank" rel="noopener noreferrer">
-        <p class="name">Uptime Status</p>
+        <div class="card-head"><span class="icon">UP</span><p class="name">Uptime Status</p></div>
         <p class="desc">Uptime Kuma checks and availability dashboard.</p>
         <p class="url" data-url="status">status.example.com</p>
       </a>
     </section>
 
     <p class="section-title">Core Services</p>
-    <section class="grid" aria-label="Core platform links">
+    <section class="grid" aria-label="Core platform links" data-section="Core Services">
       <a class="card" href="#" data-service="crm" target="_blank" rel="noopener noreferrer">
-        <p class="name">CRM</p>
+        <div class="card-head"><span class="icon">CRM</span><p class="name">CRM</p></div>
         <p class="desc">EspoCRM for customer pipeline and account data.</p>
         <p class="url" data-url="crm">crm.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="docs" target="_blank" rel="noopener noreferrer">
-        <p class="name">Knowledge Base</p>
+        <div class="card-head"><span class="icon">KB</span><p class="name">Knowledge Base</p></div>
         <p class="desc">BookStack documentation and SOP library.</p>
         <p class="url" data-url="docs">docs.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="vault" target="_blank" rel="noopener noreferrer">
-        <p class="name">Password Vault</p>
+        <div class="card-head"><span class="icon">SEC</span><p class="name">Password Vault</p></div>
         <p class="desc">Vaultwarden for secrets and shared credentials.</p>
         <p class="url" data-url="vault">vault.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="files" target="_blank" rel="noopener noreferrer">
-        <p class="name">Secure File Share</p>
+        <div class="card-head"><span class="icon">FS</span><p class="name">Secure File Share</p></div>
         <p class="desc">Seafile for password-protected expiring customer share links.</p>
         <p class="url" data-url="files">files.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="penpot" target="_blank" rel="noopener noreferrer">
-        <p class="name">Mockups & Prototypes</p>
+        <div class="card-head"><span class="icon">UI</span><p class="name">Mockups & Prototypes</p></div>
         <p class="desc">Penpot workspace for support mockups, flows, and UI collaboration.</p>
         <p class="url" data-url="penpot">penpot.example.com</p>
       </a>
     </section>
 
     <p class="section-title">Identity & Mesh</p>
-    <section class="grid" aria-label="Identity and mesh links">
+    <section class="grid" aria-label="Identity and mesh links" data-section="Identity & Mesh">
       <a class="card" href="#" data-service="mesh-web" target="_blank" rel="noopener noreferrer">
-        <p class="name">Mesh UI</p>
+        <div class="card-head"><span class="icon">MUI</span><p class="name">Mesh UI</p></div>
         <p class="desc">Headscale web interface behind OAuth2 proxy.</p>
         <p class="url" data-url="mesh-web">mesh-web.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="mesh" target="_blank" rel="noopener noreferrer">
-        <p class="name">Headscale API</p>
+        <div class="card-head"><span class="icon">API</span><p class="name">Headscale API</p></div>
         <p class="desc">Headscale control plane endpoint.</p>
         <p class="url" data-url="mesh">mesh.example.com</p>
       </a>
 
       <a class="card" href="#" data-service="sso" target="_blank" rel="noopener noreferrer">
-        <p class="name">SSO</p>
+        <div class="card-head"><span class="icon">SSO</span><p class="name">SSO</p></div>
         <p class="desc">Keycloak identity provider and realm access.</p>
         <p class="url" data-url="sso">sso.example.com</p>
       </a>
@@ -279,6 +302,7 @@
         penpot: "__PENPOT_HOST__",
         status: "__STATUS_HOST__"
       };
+      var extraLinksB64 = "__PORTAL_EXTRA_LINKS_B64__";
 
       var keycloakLogout = "https://" + hosts.sso + "/realms/" + encodeURIComponent(keycloakRealm)
         + "/protocol/openid-connect/logout?client_id=" + encodeURIComponent(portalOidcClientId)
@@ -299,6 +323,94 @@
         if (!hosts[key]) return;
         el.textContent = hosts[key];
       });
+
+      function normalizeExtraLinks(data) {
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.links)) return data.links;
+        return [];
+      }
+
+      function getOrCreateSection(name) {
+        var existing = document.querySelector('.grid[data-section="' + name.replace(/"/g, '\\"') + '"]');
+        if (existing) return existing;
+
+        var footer = document.querySelector(".footer");
+        var title = document.createElement("p");
+        title.className = "section-title";
+        title.textContent = name;
+
+        var grid = document.createElement("section");
+        grid.className = "grid";
+        grid.setAttribute("data-section", name);
+        grid.setAttribute("aria-label", name + " links");
+
+        if (footer && footer.parentNode) {
+          footer.parentNode.insertBefore(title, footer);
+          footer.parentNode.insertBefore(grid, footer);
+        } else {
+          var main = document.querySelector("main.wrap");
+          main.appendChild(title);
+          main.appendChild(grid);
+        }
+        return grid;
+      }
+
+      function buildCard(link) {
+        var href = (link.url || "").trim();
+        if (!href) return null;
+
+        var card = document.createElement("a");
+        card.className = "card";
+        card.href = href;
+        card.target = "_blank";
+        card.rel = "noopener noreferrer";
+
+        var cardHead = document.createElement("div");
+        cardHead.className = "card-head";
+
+        var icon = document.createElement("span");
+        icon.className = "icon";
+        var iconText = (link.icon || "LNK").toString().trim();
+        icon.textContent = iconText.slice(0, 3).toUpperCase() || "LNK";
+
+        var name = document.createElement("p");
+        name.className = "name";
+        name.textContent = (link.title || "Untitled Link").toString();
+
+        cardHead.appendChild(icon);
+        cardHead.appendChild(name);
+        card.appendChild(cardHead);
+
+        var desc = document.createElement("p");
+        desc.className = "desc";
+        desc.textContent = (link.description || "Additional service link.").toString();
+        card.appendChild(desc);
+
+        var url = document.createElement("p");
+        url.className = "url";
+        try {
+          url.textContent = new URL(href).host;
+        } catch (e) {
+          url.textContent = href;
+        }
+        card.appendChild(url);
+
+        return card;
+      }
+
+      try {
+        var parsed = JSON.parse(atob(extraLinksB64 || ""));
+        normalizeExtraLinks(parsed)
+          .filter(function (link) { return link && link.enabled !== false; })
+          .forEach(function (link) {
+            var sectionName = (link.section || "Additional Links").toString().trim() || "Additional Links";
+            var grid = getOrCreateSection(sectionName);
+            var card = buildCard(link);
+            if (card) grid.appendChild(card);
+          });
+      } catch (e) {
+        console.warn("Failed to load extra portal links JSON:", e);
+      }
     })();
   </script>
 </body>

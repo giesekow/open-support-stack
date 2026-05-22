@@ -310,14 +310,14 @@ services:
       - backend
 
   penpot-backend:
-    image: penpotapp/backend:latest
+    image: penpotapp/backend:2.15.3
     container_name: support-penpot-backend
     restart: unless-stopped
     depends_on:
       - penpot-db
       - penpot-redis
     environment:
-      PENPOT_FLAGS: "enable-login-with-password enable-login-with-oidc"
+      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc disable-email-verification}
       PENPOT_SECRET_KEY: ${PENPOT_SECRET_KEY}
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
       PENPOT_DATABASE_URI: postgresql://penpot-db/${PENPOT_DB_NAME}
@@ -333,6 +333,14 @@ services:
       PENPOT_OIDC_SCOPES: "openid profile email"
       PENPOT_OIDC_NAME_ATTR: name
       PENPOT_OIDC_EMAIL_ATTR: email
+      PENPOT_OIDC_USER_INFO_SOURCE: userinfo
+      PENPOT_SMTP_HOST: ${PENPOT_SMTP_HOST}
+      PENPOT_SMTP_PORT: ${PENPOT_SMTP_PORT:-587}
+      PENPOT_SMTP_USERNAME: ${PENPOT_SMTP_USERNAME}
+      PENPOT_SMTP_PASSWORD: ${PENPOT_SMTP_PASSWORD}
+      PENPOT_SMTP_TLS: ${PENPOT_SMTP_TLS:-true}
+      PENPOT_SMTP_DEFAULT_FROM: ${PENPOT_SMTP_DEFAULT_FROM:-Penpot <no-reply@example.com>}
+      PENPOT_SMTP_DEFAULT_REPLY_TO: ${PENPOT_SMTP_DEFAULT_REPLY_TO:-Penpot <support@example.com>}
       PENPOT_OBJECTS_STORAGE_BACKEND: fs
       PENPOT_OBJECTS_STORAGE_FS_DIRECTORY: /opt/data/assets
     volumes:
@@ -341,7 +349,7 @@ services:
       - backend
 
   penpot-exporter:
-    image: penpotapp/exporter:latest
+    image: penpotapp/exporter:2.15.3
     container_name: support-penpot-exporter
     restart: unless-stopped
     depends_on:
@@ -354,14 +362,14 @@ services:
       - backend
 
   penpot-mcp:
-    image: penpotapp/mcp:latest
+    image: penpotapp/mcp:2.15.3
     container_name: support-penpot-mcp
     restart: unless-stopped
     networks:
       - backend
 
   penpot-frontend:
-    image: penpotapp/frontend:latest
+    image: penpotapp/frontend:2.15.3
     container_name: support-penpot-frontend
     restart: unless-stopped
     depends_on:
@@ -369,6 +377,7 @@ services:
       - penpot-exporter
       - penpot-mcp
     environment:
+      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc disable-email-verification}
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
       PENPOT_BACKEND_URI: http://penpot-backend:6060
       PENPOT_EXPORTER_URI: http://penpot-exporter:6061

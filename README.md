@@ -165,7 +165,7 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 4. `./scripts/render_keycloak_realm.sh <env-file>`
    Render `config/keycloak/realm-support.json` from template/env values.
 5. `./scripts/render_portal_index.sh <env-file>`
-   Render `nginx/html/index.html` portal links from env values.
+   Render `nginx/html/index.html` portal links from env values and optional additions from `config/portal-links.json` (validated at render time).
 
 ### Keycloak and SSO
 
@@ -202,3 +202,46 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
    Run production readiness checks before deployment.
 2. `./scripts/check_osticket_languages.sh`
    Verify expected osTicket language packs are available.
+
+## 4. Portal Links JSON
+
+Use [`config/portal-links.json`](/media/datahouse/projects/support-stack/config/portal-links.json) to add extra cards to the portal without changing existing built-in links.
+
+Behavior:
+
+1. Existing portal links remain unchanged.
+2. JSON links are appended to matching sections (`Operations`, `Core Services`, `Identity & Mesh`).
+3. If a JSON `section` does not exist, a new section is created automatically.
+4. `enabled: false` hides a link.
+
+Supported formats:
+
+1. Object with `links` array (recommended).
+2. Top-level array of links.
+
+Each link supports:
+
+1. `title` (required)
+2. `url` (required, `http` or `https`)
+3. `section` (optional, default: `Additional Links`)
+4. `description` (optional)
+5. `icon` (optional, up to 3 chars shown)
+6. `enabled` (optional boolean, default: true)
+
+Example:
+
+```json
+{
+  "links": [
+    {
+      "id": "license-server",
+      "section": "Core Services",
+      "title": "License Server",
+      "description": "License server for issuing and updating customer licenses",
+      "url": "https://license.bonescreen.de",
+      "icon": "LIC",
+      "enabled": true
+    }
+  ]
+}
+```

@@ -35,3 +35,6 @@ tmp/
 
 # Docker override/local files
 docker-compose.override.yml
+
+# Optional local portal links overrides
+config/portal-links.json
