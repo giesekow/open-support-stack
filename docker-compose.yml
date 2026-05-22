@@ -102,9 +102,6 @@ services:
       - bookstack-data:/config
       - ./nginx/certs:/custom-certs:ro
       - ./config/bookstack/custom-cont-init.d:/custom-cont-init.d:ro
-    extra_hosts:
-      - "${SSO_HOST:-sso.example.com}:host-gateway"
-      - "${DOCS_HOST:-docs.example.com}:host-gateway"
     networks:
       - backend
 
@@ -465,7 +462,6 @@ services:
       backend:
         aliases:
           - ${SUPPORT_HOST:-example.com}
-          - ${SSO_HOST:-sso.example.com}
           - ${VAULT_HOST:-vault.example.com}
           - ${DOCS_HOST:-docs.example.com}
           - ${REMOTE_HOST:-remote.example.com}

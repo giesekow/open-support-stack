@@ -122,6 +122,15 @@ docker compose --env-file .env.production logs --tail=120
    - `https://<CRM_HOST>`
    - `https://<STATUS_HOST>`
 
+### Headscale UI API URL
+
+When configuring Headscale UI settings in the browser:
+
+1. Use `https://<MESH_WEB_HOST>` as the API URL.
+2. Do not use `https://<MESH_HOST>` for the UI API setting.
+
+Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected by the UI flow.
+
 ### Step 5: Optional env switching workflow
 
 1. If you prefer using plain `docker compose` without `--env-file`, you can activate production env into `.env`:
@@ -132,3 +141,52 @@ docker compose --env-file .env.production logs --tail=120
 ```bash
 ./scripts/switch_env.sh restore
 ```
+
+## 3. Scripts Reference
+
+### Environment and rendering
+
+1. `./scripts/switch_env.sh <dev|prod|restore>`
+   Switch active `.env` between dev/prod presets and restore previous state.
+2. `./scripts/harden_env_production.sh .env.production`
+   Generate strong production secrets and harden env defaults.
+3. `./scripts/render_headscale_config.sh <env-file>`
+   Render `config/headscale/config.yaml` from env values.
+4. `./scripts/render_keycloak_realm.sh <env-file>`
+   Render `config/keycloak/realm-support.json` from template/env values.
+5. `./scripts/render_portal_index.sh <env-file>`
+   Render `nginx/html/index.html` portal links from env values.
+
+### Keycloak and SSO
+
+1. `./scripts/sync_keycloak_redirects.sh <env-file>`
+   Sync Keycloak client redirect URIs/web origins for portal, mesh-web, and guacamole.
+2. `./scripts/check_osticket_keycloak.sh`
+   Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
+3. `./scripts/install_osticket_oauth2_plugin.sh`
+   Install osTicket OAuth2 plugin files into the expected path.
+
+### Certificates and TLS
+
+1. `./scripts/regenerate_nginx_cert.sh <env-file>`
+   Regenerate local/self-signed cert assets for nginx (dev/lab use).
+2. `./scripts/check_active_cert.sh <hostname>`
+   Show the currently served TLS cert details for a hostname.
+
+### Seeding and bootstrap
+
+1. `./scripts/seed_admin_accounts.sh`
+   Seed admin/bootstrap accounts across integrated services.
+2. `./scripts/post_seed_vaultwarden_org.sh`
+   Post-seed helper for Vaultwarden organization setup.
+3. `./scripts/seed_uptime_kuma_monitors.sh <env-file>`
+   Seed Uptime Kuma monitors for stack services.
+4. `./scripts/headscale_api_key.sh <create|list|expire> [options]`
+   Manage Headscale API keys for mesh-web and API access.
+
+### Production validation
+
+1. `./scripts/preflight_production.sh .env.production`
+   Run production readiness checks before deployment.
+2. `./scripts/check_osticket_languages.sh`
+   Verify expected osTicket language packs are available.
