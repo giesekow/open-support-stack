@@ -97,7 +97,12 @@ docker compose --env-file .env.production up -d
 ```bash
 docker compose --env-file .env.production up -d oauth2-proxy-portal oauth2-proxy-meshweb
 ```
-5. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
+5. Apply Seafile trusted-origin/CSRF settings (recommended after first Seafile start or hostname changes):
+```bash
+./scripts/configure_seafile_csrf.sh .env.production
+docker compose --env-file .env.production up -d --force-recreate seafile
+```
+6. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
 ```bash
 docker compose --env-file .env.production logs --tail=120 certbot nginx
 ```
@@ -124,6 +129,7 @@ docker compose --env-file .env.production logs --tail=120
    - `https://<TICKETS_HOST>`
    - `https://<CRM_HOST>`
    - `https://<FILES_HOST>`
+   - `https://<PENPOT_HOST>`
    - `https://<STATUS_HOST>`
 
 ### Headscale UI API URL
@@ -164,11 +170,13 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, and EspoCRM.
+   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, EspoCRM, Seafile, and Penpot.
 2. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
 3. `./scripts/install_osticket_oauth2_plugin.sh`
    Install osTicket OAuth2 plugin files into the expected path.
+4. `./scripts/configure_seafile_csrf.sh <env-file>`
+   Idempotently sets Seafile `SERVICE_URL`, `FILE_SERVER_ROOT`, and `CSRF_TRUSTED_ORIGINS`.
 
 ### Certificates and TLS
 

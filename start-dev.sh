@@ -33,3 +33,7 @@ fi
 if [[ -x ./scripts/check_osticket_keycloak.sh ]]; then
   ./scripts/check_osticket_keycloak.sh || true
 fi
+
+if [[ -x ./scripts/configure_seafile_csrf.sh ]]; then
+  ./scripts/configure_seafile_csrf.sh .env || true
+fi

@@ -176,6 +176,26 @@
         "https://__FILES_HOST__",
         "http://__FILES_HOST__"
       ]
+    },
+    {
+      "clientId": "penpot",
+      "name": "Penpot",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "a2fc5d71979a90684f1d95d2fdd0f3d4f5de1315241d9628",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__PENPOT_HOST__/api/auth/oidc/callback",
+        "https://__PENPOT_HOST__/*",
+        "http://__PENPOT_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__PENPOT_HOST__",
+        "http://__PENPOT_HOST__"
+      ]
     }
   ]
 }

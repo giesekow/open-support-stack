@@ -127,6 +127,26 @@ server {
 
 server {
     listen 443 ssl;
+    server_name __PENPOT_HOST__;
+    resolver 127.0.0.11 valid=30s;
+
+    ssl_certificate __SSL_CERT_PATH__;
+    ssl_certificate_key __SSL_KEY_PATH__;
+
+    client_max_body_size 2g;
+
+    location / {
+        set $upstream_penpot penpot-frontend:8080;
+        proxy_pass http://$upstream_penpot;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+
+server {
+    listen 443 ssl;
     server_name __STATUS_HOST__;
     resolver 127.0.0.11 valid=30s;
 

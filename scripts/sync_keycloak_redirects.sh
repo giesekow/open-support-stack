@@ -30,6 +30,7 @@ REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
+PENPOT_HOST="$(env_get PENPOT_HOST "penpot.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
 MESHWEB_CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
 PORTAL_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "support-portal")"
@@ -38,6 +39,7 @@ BOOKSTACK_CLIENT_ID="$(env_get BOOKSTACK_OIDC_CLIENT_ID "bookstack")"
 OSTICKET_CLIENT_ID="$(env_get OSTICKET_OIDC_CLIENT_ID "osticket")"
 ESPOCRM_CLIENT_ID="$(env_get ESPOCRM_OIDC_CLIENT_ID "espocrm")"
 SEAFILE_CLIENT_ID="$(env_get SEAFILE_OIDC_CLIENT_ID "seafile")"
+PENPOT_CLIENT_ID="$(env_get PENPOT_OIDC_CLIENT_ID "penpot")"
 KEYCLOAK_ADMIN_USER="$(env_get KEYCLOAK_ADMIN_USER "")"
 KEYCLOAK_ADMIN_PASSWORD="$(env_get KEYCLOAK_ADMIN_PASSWORD "")"
 
@@ -165,6 +167,22 @@ docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$SEAF
   -s "webOrigins=[\"https://${FILES_HOST}\"]" \
   >/dev/null
 
+PENPOT_CLIENT_UUID="$(
+  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$PENPOT_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$PENPOT_CLIENT_UUID" || "$PENPOT_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$PENPOT_CLIENT_ID' not found in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$PENPOT_CLIENT_ID'"
+docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$PENPOT_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${PENPOT_HOST}/api/auth/oidc/callback\",\"https://${PENPOT_HOST}/*\"]" \
+  -s "webOrigins=[\"https://${PENPOT_HOST}\"]" \
+  >/dev/null
+
 echo "Done. Client '$MESHWEB_CLIENT_ID' now allows:"
 echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
 echo "Done. Client '$PORTAL_CLIENT_ID' now allows:"
@@ -179,3 +197,5 @@ echo "Done. Client '$ESPOCRM_CLIENT_ID' now allows:"
 echo "  - https://${CRM_HOST}/oauth-callback.php"
 echo "Done. Client '$SEAFILE_CLIENT_ID' now allows:"
 echo "  - https://${FILES_HOST}/*"
+echo "Done. Client '$PENPOT_CLIENT_ID' now allows:"
+echo "  - https://${PENPOT_HOST}/api/auth/oidc/callback"
