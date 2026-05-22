@@ -320,7 +320,9 @@ services:
       PENPOT_FLAGS: "enable-login-with-password enable-login-with-oidc"
       PENPOT_SECRET_KEY: ${PENPOT_SECRET_KEY}
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
-      PENPOT_DATABASE_URI: postgresql://${PENPOT_DB_USER}:${PENPOT_DB_PASSWORD}@penpot-db/${PENPOT_DB_NAME}
+      PENPOT_DATABASE_URI: postgresql://penpot-db/${PENPOT_DB_NAME}
+      PENPOT_DATABASE_USERNAME: ${PENPOT_DB_USER}
+      PENPOT_DATABASE_PASSWORD: ${PENPOT_DB_PASSWORD}
       PENPOT_REDIS_URI: redis://penpot-redis:6379/0
       PENPOT_OIDC_CLIENT_ID: ${PENPOT_OIDC_CLIENT_ID}
       PENPOT_OIDC_CLIENT_SECRET: ${PENPOT_OIDC_CLIENT_SECRET}
@@ -342,8 +344,16 @@ services:
     depends_on:
       - penpot-redis
     environment:
-      PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
+      PENPOT_SECRET_KEY: ${PENPOT_SECRET_KEY}
+      PENPOT_PUBLIC_URI: http://penpot-frontend:8080
       PENPOT_REDIS_URI: redis://penpot-redis:6379/0
+    networks:
+      - backend
+
+  penpot-mcp:
+    image: penpotapp/mcp:latest
+    container_name: support-penpot-mcp
+    restart: unless-stopped
     networks:
       - backend
 
@@ -354,6 +364,7 @@ services:
     depends_on:
       - penpot-backend
       - penpot-exporter
+      - penpot-mcp
     environment:
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
       PENPOT_BACKEND_URI: http://penpot-backend:6060
