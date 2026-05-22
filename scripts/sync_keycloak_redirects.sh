@@ -27,10 +27,12 @@ SUPPORT_HOST="$(env_get SUPPORT_HOST "support.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
+TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
 CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
 GUAC_CLIENT_ID="$(env_get GUACAMOLE_OPENID_CLIENT_ID "guacamole")"
 BOOKSTACK_CLIENT_ID="$(env_get BOOKSTACK_OIDC_CLIENT_ID "bookstack")"
+OSTICKET_CLIENT_ID="$(env_get OSTICKET_OIDC_CLIENT_ID "osticket")"
 KEYCLOAK_ADMIN_USER="$(env_get KEYCLOAK_ADMIN_USER "")"
 KEYCLOAK_ADMIN_PASSWORD="$(env_get KEYCLOAK_ADMIN_PASSWORD "")"
 
@@ -94,6 +96,22 @@ docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$BOOK
   -s "webOrigins=[\"https://${DOCS_HOST}\"]" \
   >/dev/null
 
+OSTICKET_CLIENT_UUID="$(
+  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$OSTICKET_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$OSTICKET_CLIENT_UUID" || "$OSTICKET_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$OSTICKET_CLIENT_ID' not found in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$OSTICKET_CLIENT_ID'"
+docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$OSTICKET_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${TICKETS_HOST}/auth/oauth2\",\"https://${TICKETS_HOST}/*\"]" \
+  -s "webOrigins=[\"https://${TICKETS_HOST}\"]" \
+  >/dev/null
+
 echo "Done. Client '$CLIENT_ID' now allows:"
 echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
 echo "  - https://${SUPPORT_HOST}/oauth2/callback"
@@ -101,3 +119,5 @@ echo "Done. Client '$GUAC_CLIENT_ID' now allows:"
 echo "  - https://${REMOTE_HOST}/guacamole/*"
 echo "Done. Client '$BOOKSTACK_CLIENT_ID' now allows:"
 echo "  - https://${DOCS_HOST}/oidc/callback"
+echo "Done. Client '$OSTICKET_CLIENT_ID' now allows:"
+echo "  - https://${TICKETS_HOST}/auth/oauth2"
