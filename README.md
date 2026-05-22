@@ -206,6 +206,11 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 ## 4. Portal Links JSON
 
 Use [`config/portal-links.json`](/media/datahouse/projects/support-stack/config/portal-links.json) to add extra cards to the portal without changing existing built-in links.
+Start by copying the example:
+
+```bash
+cp config/portal-links.example.json config/portal-links.json
+```
 
 Behavior:
 

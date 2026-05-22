@@ -1,0 +1,13 @@
+{
+  "links": [
+    {
+      "id": "license-server",
+      "section": "Core Services",
+      "title": "License Server",
+      "description": "License server for issuing and updating customer licenses",
+      "url": "https://license.example.com",
+      "icon": "LIC",
+      "enabled": true
+    }
+  ]
+}
