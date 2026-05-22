@@ -62,6 +62,10 @@ docker compose logs -f nginx keycloak
    - `LETSENCRYPT_EMAIL=<your-email>`
    - `LETSENCRYPT_DOMAINS=<comma-separated domains>`
    - `LETSENCRYPT_PRIMARY_DOMAIN=<one domain from list>`
+6. If `NGINX_MODE=http` (TLS terminated upstream), oauth2-proxy uses split OIDC endpoints by design:
+   - Login URL via public HTTPS (`https://<SSO_HOST>/.../auth`)
+   - Redeem/JWKS via internal Keycloak HTTP (`http://keycloak:8080/...`)
+   This prevents callback `500` errors during code exchange.
 
 ### Step 2: Preflight checks
 
@@ -86,7 +90,11 @@ docker compose --env-file .env.production pull
 ```bash
 docker compose --env-file .env.production up -d
 ```
-4. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
+4. Recreate oauth2-proxy services after any OIDC/env changes:
+```bash
+docker compose --env-file .env.production up -d oauth2-proxy-portal oauth2-proxy-meshweb
+```
+5. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
 ```bash
 docker compose --env-file .env.production logs --tail=120 certbot nginx
 ```

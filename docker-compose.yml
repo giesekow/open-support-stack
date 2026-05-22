@@ -279,6 +279,10 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${OAUTH2_PROXY_OIDC_ISSUER_URL_INTERNAL:-http://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_LOGIN_URL: https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/certs
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_CLIENT_ID: ${MESHWEB_OIDC_CLIENT_ID}
       OAUTH2_PROXY_CLIENT_SECRET: ${MESHWEB_OIDC_CLIENT_SECRET}
@@ -311,6 +315,10 @@ services:
     environment:
       OAUTH2_PROXY_PROVIDER: oidc
       OAUTH2_PROXY_OIDC_ISSUER_URL: ${OAUTH2_PROXY_OIDC_ISSUER_URL_INTERNAL:-http://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}}
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_LOGIN_URL: https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-support}/protocol/openid-connect/certs
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_CLIENT_ID: ${MESHWEB_OIDC_CLIENT_ID}
       OAUTH2_PROXY_CLIENT_SECRET: ${MESHWEB_OIDC_CLIENT_SECRET}

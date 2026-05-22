@@ -189,7 +189,7 @@ server {
 
     location / {
         auth_request /oauth2/auth;
-        error_page 401 =302 /oauth2/start?rd=$scheme://$host$request_uri;
+        error_page 401 =302 /oauth2/start?rd=https://$host$request_uri;
         auth_request_set $auth_user $upstream_http_x_auth_request_user;
         auth_request_set $auth_email $upstream_http_x_auth_request_email;
         proxy_set_header X-Auth-Request-User $auth_user;
@@ -234,7 +234,7 @@ server {
 
     location / {
         auth_request /oauth2/auth;
-        error_page 401 =302 /oauth2/start?rd=$scheme://$host$request_uri;
+        error_page 401 =302 /oauth2/start?rd=https://$host$request_uri;
         auth_request_set $auth_user $upstream_http_x_auth_request_user;
         auth_request_set $auth_email $upstream_http_x_auth_request_email;
         add_header X-Auth-Request-User $auth_user always;
