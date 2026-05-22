@@ -44,6 +44,7 @@ MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
+KEYCLOAK_REALM="$(env_get KEYCLOAK_REALM "support")"
 
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
@@ -59,6 +60,7 @@ sed \
   -e "s|__TICKETS_HOST__|$(escape_sed_replacement "$TICKETS_HOST")|g" \
   -e "s|__CRM_HOST__|$(escape_sed_replacement "$CRM_HOST")|g" \
   -e "s|__STATUS_HOST__|$(escape_sed_replacement "$STATUS_HOST")|g" \
+  -e "s|__KEYCLOAK_REALM__|$(escape_sed_replacement "$KEYCLOAK_REALM")|g" \
   "$TPL" > "$TMP_OUT"
 
 if grep -q '__[A-Z0-9_]\+__' "$TMP_OUT"; then

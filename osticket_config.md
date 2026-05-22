@@ -16,6 +16,7 @@ Use these values in the osTicket OAuth2 provider/plugin settings:
 - Authorization URL: `https://sso.example.com/realms/support/protocol/openid-connect/auth`
 - Token URL: `https://sso.example.com/realms/support/protocol/openid-connect/token`
 - User Info URL: `https://sso.example.com/realms/support/protocol/openid-connect/userinfo`
+- JSON Web Key Set Endpoint: `https://sso.example.com/realms/support/protocol/openid-connect/certs`
 - Scope: `openid profile email`
 
 ## Claim Mapping
