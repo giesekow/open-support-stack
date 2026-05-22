@@ -25,8 +25,10 @@ env_get() {
 BASE_DOMAIN="$(env_get BASE_DOMAIN "example.com")"
 SUPPORT_HOST="$(env_get SUPPORT_HOST "support.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
+REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
 CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
+GUAC_CLIENT_ID="$(env_get GUACAMOLE_OPENID_CLIENT_ID "guacamole")"
 KEYCLOAK_ADMIN_USER="$(env_get KEYCLOAK_ADMIN_USER "")"
 KEYCLOAK_ADMIN_PASSWORD="$(env_get KEYCLOAK_ADMIN_PASSWORD "")"
 
@@ -58,6 +60,24 @@ docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$CLIE
   -s "webOrigins=[\"https://${MESH_WEB_HOST}\",\"https://${SUPPORT_HOST}\"]" \
   >/dev/null
 
+GUAC_CLIENT_UUID="$(
+  docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$GUAC_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$GUAC_CLIENT_UUID" || "$GUAC_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$GUAC_CLIENT_ID' not found in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$GUAC_CLIENT_ID'"
+docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$GUAC_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${REMOTE_HOST}/guacamole/*\",\"https://${REMOTE_HOST}/guacamole/\"]" \
+  -s "webOrigins=[\"https://${REMOTE_HOST}\"]" \
+  >/dev/null
+
 echo "Done. Client '$CLIENT_ID' now allows:"
 echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
 echo "  - https://${SUPPORT_HOST}/oauth2/callback"
+echo "Done. Client '$GUAC_CLIENT_ID' now allows:"
+echo "  - https://${REMOTE_HOST}/guacamole/*"

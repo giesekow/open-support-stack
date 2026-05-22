@@ -17,6 +17,19 @@ fi
 
 docker compose up -d
 
+if [[ -x ./scripts/sync_keycloak_redirects.sh ]]; then
+  for i in 1 2 3 4 5; do
+    if ./scripts/sync_keycloak_redirects.sh .env; then
+      break
+    fi
+    if [[ "$i" -lt 5 ]]; then
+      sleep 5
+    else
+      echo "[WARN] Failed to sync Keycloak redirect URIs after 5 attempts."
+    fi
+  done
+fi
+
 if [[ -x ./scripts/check_osticket_keycloak.sh ]]; then
   ./scripts/check_osticket_keycloak.sh || true
 fi
