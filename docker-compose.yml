@@ -240,6 +240,53 @@ services:
     networks:
       - backend
 
+  orangehrm-db:
+    image: mariadb:11.4
+    container_name: support-orangehrm-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${ORANGEHRM_DB_NAME}
+      MYSQL_USER: ${ORANGEHRM_DB_USER}
+      MYSQL_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
+    volumes:
+      - orangehrm-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  orangehrm:
+    image: orangehrm/orangehrm:5.8.1
+    container_name: support-orangehrm
+    restart: unless-stopped
+    depends_on:
+      - orangehrm-db
+    environment:
+      ORANGEHRM_DATABASE_HOST: orangehrm-db
+      ORANGEHRM_DATABASE_PORT: 3306
+      ORANGEHRM_DATABASE_NAME: ${ORANGEHRM_DB_NAME}
+      ORANGEHRM_DATABASE_USER: ${ORANGEHRM_DB_USER}
+      ORANGEHRM_DATABASE_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
+      ORANGEHRM_DATABASE_ADMIN_USER: root
+      ORANGEHRM_DATABASE_ADMIN_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
+      ORANGEHRM_ADMIN_USERNAME: ${ORANGEHRM_ADMIN_USERNAME}
+      ORANGEHRM_ADMIN_PASSWORD: ${ORANGEHRM_ADMIN_PASSWORD}
+      ORANGEHRM_ADMIN_FIRSTNAME: ${ORANGEHRM_ADMIN_FIRSTNAME}
+      ORANGEHRM_ADMIN_LASTNAME: ${ORANGEHRM_ADMIN_LASTNAME}
+      ORANGEHRM_ADMIN_EMAIL: ${ORANGEHRM_ADMIN_EMAIL}
+    command: >
+      /bin/sh -c '
+      set -eu;
+      if [ -f /usr/local/share/ca-certificates/support-stack-ca.crt ]; then
+        update-ca-certificates >/dev/null 2>&1 || true;
+      fi;
+      exec apache2-foreground
+      '
+    volumes:
+      - orangehrm-data:/var/www/html
+      - ./nginx/certs/support-stack-ca.crt:/usr/local/share/ca-certificates/support-stack-ca.crt:ro
+    networks:
+      - backend
+
   seafile-db:
     image: mariadb:11.4
     container_name: support-seafile-db
@@ -505,6 +552,7 @@ services:
       - headscale-ui
       - osticket
       - espocrm
+      - orangehrm
       - seafile
       - penpot-frontend
       - oauth2-proxy-meshweb
@@ -521,6 +569,7 @@ services:
       MESH_WEB_HOST: ${MESH_WEB_HOST:-mesh-web.example.com}
       TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
       CRM_HOST: ${CRM_HOST:-crm.example.com}
+      HR_HOST: ${HR_HOST:-hr.example.com}
       FILES_HOST: ${FILES_HOST:-files.example.com}
       PENPOT_HOST: ${PENPOT_HOST:-penpot.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
@@ -540,11 +589,12 @@ services:
       MESH_WEB_HOST="$${MESH_WEB_HOST:-mesh-web.$${BASE_DOMAIN}}";
       TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
       CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
+      HR_HOST="$${HR_HOST:-hr.$${BASE_DOMAIN}}";
       FILES_HOST="$${FILES_HOST:-files.$${BASE_DOMAIN}}";
       PENPOT_HOST="$${PENPOT_HOST:-penpot.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
       NGINX_MODE="$${NGINX_MODE:-https}";
-      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$FILES_HOST $$PENPOT_HOST $$STATUS_HOST";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$FILES_HOST $$PENPOT_HOST $$STATUS_HOST";
 
       if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
         echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
@@ -570,6 +620,7 @@ services:
           -e "s|__MESH_WEB_HOST__|$$MESH_WEB_HOST|g" \
           -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
           -e "s|__CRM_HOST__|$$CRM_HOST|g" \
+          -e "s|__HR_HOST__|$$HR_HOST|g" \
           -e "s|__FILES_HOST__|$$FILES_HOST|g" \
           -e "s|__PENPOT_HOST__|$$PENPOT_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
@@ -614,6 +665,7 @@ services:
       backend:
         aliases:
           - ${SUPPORT_HOST:-example.com}
+          - ${SSO_HOST:-sso.example.com}
           - ${VAULT_HOST:-vault.example.com}
           - ${DOCS_HOST:-docs.example.com}
           - ${REMOTE_HOST:-remote.example.com}
@@ -621,6 +673,7 @@ services:
           - ${MESH_WEB_HOST:-mesh-web.example.com}
           - ${TICKETS_HOST:-tickets.example.com}
           - ${CRM_HOST:-crm.example.com}
+          - ${HR_HOST:-hr.example.com}
           - ${FILES_HOST:-files.example.com}
           - ${PENPOT_HOST:-penpot.example.com}
           - ${STATUS_HOST:-status.example.com}
@@ -685,6 +738,8 @@ volumes:
   osticket-db-data:
   espocrm-db-data:
   espocrm-data:
+  orangehrm-db-data:
+  orangehrm-data:
   seafile-db-data:
   seafile-data:
   penpot-db-data:

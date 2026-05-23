@@ -128,6 +128,7 @@ docker compose --env-file .env.production logs --tail=120
    - `https://<MESH_WEB_HOST>`
    - `https://<TICKETS_HOST>`
    - `https://<CRM_HOST>`
+   - `https://<HR_HOST>`
    - `https://<FILES_HOST>`
    - `https://<PENPOT_HOST>`
    - `https://<STATUS_HOST>`
@@ -170,7 +171,7 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, EspoCRM, Seafile, and Penpot.
+   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, EspoCRM, Seafile, Penpot, and OrangeHRM.
 2. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
 3. `./scripts/install_osticket_oauth2_plugin.sh`

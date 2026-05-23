@@ -7,9 +7,10 @@ mesh.support.example.com
 mesh-web.support.example.com
 tickets.support.example.com
 crm.support.example.com
+hr.support.example.com
 files.support.example.com
 penpot.support.example.com
 status.support.example.com
 
 # /etc/hosts helper line
-127.0.0.1 support.example.com sso.support.example.com vault.support.example.com docs.support.example.com remote.support.example.com mesh.support.example.com mesh-web.support.example.com tickets.support.example.com crm.support.example.com files.support.example.com penpot.support.example.com status.support.example.com
+127.0.0.1 support.example.com sso.support.example.com vault.support.example.com docs.support.example.com remote.support.example.com mesh.support.example.com mesh-web.support.example.com tickets.support.example.com crm.support.example.com hr.support.example.com files.support.example.com penpot.support.example.com status.support.example.com

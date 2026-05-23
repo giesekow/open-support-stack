@@ -46,6 +46,9 @@ MESH_HOST="$(env_get MESH_HOST "mesh.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
+HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
+FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
+PENPOT_HOST="$(env_get PENPOT_HOST "penpot.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
 
 DNS_NAMES=(
@@ -58,6 +61,9 @@ DNS_NAMES=(
   "$MESH_WEB_HOST"
   "$TICKETS_HOST"
   "$CRM_HOST"
+  "$HR_HOST"
+  "$FILES_HOST"
+  "$PENPOT_HOST"
   "$STATUS_HOST"
 )
 

@@ -236,6 +236,12 @@
         <p class="url" data-url="crm">crm.example.com</p>
       </a>
 
+      <a class="card" href="#" data-service="hr" target="_blank" rel="noopener noreferrer">
+        <div class="card-head"><span class="icon">HR</span><p class="name">HR</p></div>
+        <p class="desc">OrangeHRM for employee records, leave, and vacation planning.</p>
+        <p class="url" data-url="hr">hr.example.com</p>
+      </a>
+
       <a class="card" href="#" data-service="docs" target="_blank" rel="noopener noreferrer">
         <div class="card-head"><span class="icon">KB</span><p class="name">Knowledge Base</p></div>
         <p class="desc">BookStack documentation and SOP library.</p>
@@ -298,15 +304,17 @@
         "mesh-web": "__MESH_WEB_HOST__",
         tickets: "__TICKETS_HOST__",
         crm: "__CRM_HOST__",
+        hr: "__HR_HOST__",
         files: "__FILES_HOST__",
         penpot: "__PENPOT_HOST__",
         status: "__STATUS_HOST__"
       };
       var extraLinksB64 = "__PORTAL_EXTRA_LINKS_B64__";
 
+      var postLogoutRedirect = window.location.origin + "/";
       var keycloakLogout = "https://" + hosts.sso + "/realms/" + encodeURIComponent(keycloakRealm)
         + "/protocol/openid-connect/logout?client_id=" + encodeURIComponent(portalOidcClientId)
-        + "&post_logout_redirect_uri=" + encodeURIComponent("https://" + hosts.support + "/");
+        + "&post_logout_redirect_uri=" + encodeURIComponent(postLogoutRedirect);
       var portalLogout = "/oauth2/sign_out?rd=" + encodeURIComponent(keycloakLogout);
 
       document.querySelectorAll("[data-service]").forEach(function (el) {
