@@ -287,6 +287,184 @@ services:
     networks:
       - backend
 
+  erpnext-db:
+    image: mariadb:11.4
+    container_name: support-erpnext-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ERPNEXT_DB_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    volumes:
+      - erpnext-db-data:/var/lib/mysql
+    networks:
+      - backend
+
+  erpnext-redis-cache:
+    image: redis:7-alpine
+    container_name: support-erpnext-redis-cache
+    restart: unless-stopped
+    networks:
+      - backend
+
+  erpnext-redis-queue:
+    image: redis:7-alpine
+    container_name: support-erpnext-redis-queue
+    restart: unless-stopped
+    networks:
+      - backend
+
+  erpnext-configurator:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-configurator
+    restart: on-failure
+    profiles: ["bootstrap"]
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -e
+        ls -1 apps > sites/apps.txt
+        bench set-config -g db_host erpnext-db
+        bench set-config -gp db_port 3306
+        bench set-config -g redis_cache "redis://erpnext-redis-cache:6379"
+        bench set-config -g redis_queue "redis://erpnext-redis-queue:6379"
+        bench set-config -g redis_socketio "redis://erpnext-redis-queue:6379"
+        bench set-config -gp socketio_port 9000
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-create-site:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-create-site
+    restart: "no"
+    profiles: ["bootstrap"]
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+      - erpnext-configurator
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        set -e
+        wait-for-it erpnext-db:3306 -t 120
+        wait-for-it erpnext-redis-cache:6379 -t 120
+        wait-for-it erpnext-redis-queue:6379 -t 120
+        if [ ! -d "sites/${ERPNEXT_SITE_NAME:-erp.example.com}" ]; then
+          bench new-site "${ERPNEXT_SITE_NAME:-erp.example.com}" --no-mariadb-socket --mariadb-root-password "${ERPNEXT_DB_ROOT_PASSWORD}" --admin-password "${ERPNEXT_ADMIN_PASSWORD}"
+        fi
+        if ! bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" list-apps | grep -q '^erpnext '; then
+          bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" install-app erpnext
+        fi
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-backend:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-backend
+    restart: unless-stopped
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    command: /home/frappe/frappe-bench/env/bin/gunicorn --chdir=/home/frappe/frappe-bench/sites -b 0.0.0.0:8000 -w 2 --threads 4 --timeout 120 frappe.app:application
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-websocket:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-websocket
+    restart: unless-stopped
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-queue-short:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-queue-short
+    restart: unless-stopped
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    command: bench worker --queue short,default
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-queue-long:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-queue-long
+    restart: unless-stopped
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    command: bench worker --queue long,default,short
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-scheduler:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-scheduler
+    restart: unless-stopped
+    depends_on:
+      - erpnext-db
+      - erpnext-redis-cache
+      - erpnext-redis-queue
+    command: bench schedule
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
+  erpnext-frontend:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    container_name: support-erpnext-frontend
+    restart: unless-stopped
+    depends_on:
+      - erpnext-backend
+      - erpnext-websocket
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      BACKEND: erpnext-backend:8000
+      SOCKETIO: erpnext-websocket:9000
+      FRAPPE_SITE_NAME_HEADER: ${ERPNEXT_SITE_NAME:-erp.example.com}
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: "120"
+      CLIENT_MAX_BODY_SIZE: 100m
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - backend
+
   seafile-db:
     image: mariadb:11.4
     container_name: support-seafile-db
@@ -553,6 +731,7 @@ services:
       - osticket
       - espocrm
       - orangehrm
+      - erpnext-frontend
       - seafile
       - penpot-frontend
       - oauth2-proxy-meshweb
@@ -570,6 +749,7 @@ services:
       TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
       CRM_HOST: ${CRM_HOST:-crm.example.com}
       HR_HOST: ${HR_HOST:-hr.example.com}
+      ERP_HOST: ${ERP_HOST:-erp.example.com}
       FILES_HOST: ${FILES_HOST:-files.example.com}
       PENPOT_HOST: ${PENPOT_HOST:-penpot.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
@@ -590,11 +770,12 @@ services:
       TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
       CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
       HR_HOST="$${HR_HOST:-hr.$${BASE_DOMAIN}}";
+      ERP_HOST="$${ERP_HOST:-erp.$${BASE_DOMAIN}}";
       FILES_HOST="$${FILES_HOST:-files.$${BASE_DOMAIN}}";
       PENPOT_HOST="$${PENPOT_HOST:-penpot.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
       NGINX_MODE="$${NGINX_MODE:-https}";
-      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$FILES_HOST $$PENPOT_HOST $$STATUS_HOST";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$ERP_HOST $$FILES_HOST $$PENPOT_HOST $$STATUS_HOST";
 
       if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
         echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
@@ -621,6 +802,7 @@ services:
           -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
           -e "s|__CRM_HOST__|$$CRM_HOST|g" \
           -e "s|__HR_HOST__|$$HR_HOST|g" \
+          -e "s|__ERP_HOST__|$$ERP_HOST|g" \
           -e "s|__FILES_HOST__|$$FILES_HOST|g" \
           -e "s|__PENPOT_HOST__|$$PENPOT_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
@@ -674,6 +856,7 @@ services:
           - ${TICKETS_HOST:-tickets.example.com}
           - ${CRM_HOST:-crm.example.com}
           - ${HR_HOST:-hr.example.com}
+          - ${ERP_HOST:-erp.example.com}
           - ${FILES_HOST:-files.example.com}
           - ${PENPOT_HOST:-penpot.example.com}
           - ${STATUS_HOST:-status.example.com}
@@ -740,6 +923,8 @@ volumes:
   espocrm-data:
   orangehrm-db-data:
   orangehrm-data:
+  erpnext-db-data:
+  erpnext-sites:
   seafile-db-data:
   seafile-data:
   penpot-db-data:

@@ -37,6 +37,7 @@ MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
+ERP_HOST="$(env_get ERP_HOST "erp.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
 KEYCLOAK_REALM="$(env_get KEYCLOAK_REALM "support")"
 
@@ -119,6 +120,7 @@ MESH_WEB_HOST="$MESH_WEB_HOST" \
 TICKETS_HOST="$TICKETS_HOST" \
 CRM_HOST="$CRM_HOST" \
 HR_HOST="$HR_HOST" \
+ERP_HOST="$ERP_HOST" \
 KEYCLOAK_REALM="$KEYCLOAK_REALM" \
 docker compose exec -T uptime-kuma node - <<'NODE'
 const { io } = require("socket.io-client");
@@ -145,6 +147,7 @@ const meshWebHost = process.env.MESH_WEB_HOST;
 const ticketsHost = process.env.TICKETS_HOST;
 const crmHost = process.env.CRM_HOST;
 const hrHost = process.env.HR_HOST;
+const erpHost = process.env.ERP_HOST;
 const keycloakRealm = process.env.KEYCLOAK_REALM || "support";
 
 const defaults = [
@@ -157,6 +160,7 @@ const defaults = [
   { name: "osTicket", url: `https://${ticketsHost}/` },
   { name: "EspoCRM", url: `https://${crmHost}/` },
   { name: "OrangeHRM", url: `https://${hrHost}/` },
+  { name: "ERPNext", url: `https://${erpHost}/` },
 ];
 
 function emitAck(socket, event, ...args) {

@@ -34,6 +34,7 @@ REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
+ERP_HOST="$(env_get ERP_HOST "erp.${BASE_DOMAIN}")"
 FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
 PENPOT_HOST="$(env_get PENPOT_HOST "penpot.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
@@ -44,6 +45,7 @@ BOOKSTACK_CLIENT_ID="$(env_get BOOKSTACK_OIDC_CLIENT_ID "bookstack")"
 OSTICKET_CLIENT_ID="$(env_get OSTICKET_OIDC_CLIENT_ID "osticket")"
 ESPOCRM_CLIENT_ID="$(env_get ESPOCRM_OIDC_CLIENT_ID "espocrm")"
 ORANGEHRM_CLIENT_ID="$(env_get ORANGEHRM_OIDC_CLIENT_ID "orangehrm")"
+ERPNEXT_CLIENT_ID="$(env_get ERPNEXT_OIDC_CLIENT_ID "erpnext")"
 SEAFILE_CLIENT_ID="$(env_get SEAFILE_OIDC_CLIENT_ID "seafile")"
 PENPOT_CLIENT_ID="$(env_get PENPOT_OIDC_CLIENT_ID "penpot")"
 KEYCLOAK_ADMIN_USER="$(env_get KEYCLOAK_ADMIN_USER "")"
@@ -174,6 +176,22 @@ dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$ORANGEHRM_CLIENT
   -s "webOrigins=[\"https://${HR_HOST}\",\"http://${HR_HOST}\"]" \
   >/dev/null
 
+ERPNEXT_CLIENT_UUID="$(
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$ERPNEXT_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$ERPNEXT_CLIENT_UUID" || "$ERPNEXT_CLIENT_UUID" == "id" ]]; then
+  echo "Client '$ERPNEXT_CLIENT_ID' not found in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$ERPNEXT_CLIENT_ID'"
+dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$ERPNEXT_CLIENT_UUID" -r "$REALM" \
+  -s "redirectUris=[\"https://${ERP_HOST}/*\",\"http://${ERP_HOST}/*\"]" \
+  -s "webOrigins=[\"https://${ERP_HOST}\",\"http://${ERP_HOST}\"]" \
+  >/dev/null
+
 SEAFILE_CLIENT_UUID="$(
   dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$SEAFILE_CLIENT_ID" --fields id --format csv --noquotes \
     | tr -d '\r' | tail -n 1
@@ -222,6 +240,9 @@ echo "  - https://${CRM_HOST}/oauth-callback.php"
 echo "Done. Client '$ORANGEHRM_CLIENT_ID' now allows:"
 echo "  - https://${HR_HOST}/*"
 echo "  - http://${HR_HOST}/*"
+echo "Done. Client '$ERPNEXT_CLIENT_ID' now allows:"
+echo "  - https://${ERP_HOST}/*"
+echo "  - http://${ERP_HOST}/*"
 echo "Done. Client '$SEAFILE_CLIENT_ID' now allows:"
 echo "  - https://${FILES_HOST}/*"
 echo "Done. Client '$PENPOT_CLIENT_ID' now allows:"

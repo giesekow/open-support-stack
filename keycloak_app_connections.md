@@ -63,9 +63,16 @@ In OrangeHRM `Admin -> OpenID Providers -> Add Provider`:
 
 1. `Name`: e.g. `Keycloak`
 2. `Provider URL`:
-   - `https://<SSO_HOST>/realms/<REALM>`
+   - preferred in this stack: `http://<SSO_HOST>/realms/<REALM>` (container-internal reachability)
+   - use `https://<SSO_HOST>/realms/<REALM>` only if OrangeHRM container can reach `443` and trusts your cert chain
 3. `Client ID`: `orangehrm`
 4. `Client Secret`: must match Keycloak
+
+Notes:
+
+1. OrangeHRM performs OIDC discovery server-side from inside the container.
+2. If internal HTTPS is not reachable/trusted, discovery fails before browser redirect.
+3. Using `http://<SSO_HOST>/realms/<REALM>` for provider discovery still results in external browser redirect to Keycloak HTTPS endpoints when Keycloak issuer/endpoints are HTTPS.
 
 ### Mapping Notes (Important)
 
@@ -86,6 +93,9 @@ Example:
 
 1. `500` on `/openidauth/openIdCredentials/...`:
    - container cannot reach SSO host or TLS trust issue.
+   - check `/var/www/html/src/log/orangehrm.log`; common errors are:
+     - `Failed to connect ... port 443`
+     - `SSL certificate problem: unable to get local issuer certificate`
 2. `No User Found`:
    - no OrangeHRM username matching Keycloak `email`.
 

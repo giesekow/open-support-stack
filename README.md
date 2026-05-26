@@ -93,16 +93,34 @@ docker compose --env-file .env.production pull
 ```bash
 docker compose --env-file .env.production up -d
 ```
-4. Recreate oauth2-proxy services after any OIDC/env changes:
+4. ERPNext first boot is now explicit (one-time bootstrap profile):
+```bash
+docker compose --env-file .env.production --profile bootstrap up -d erpnext-configurator erpnext-create-site
+docker compose --env-file .env.production logs -f erpnext-create-site
+```
+5. Start or refresh ERPNext runtime services:
+```bash
+docker compose --env-file .env.production up -d erpnext-backend erpnext-websocket erpnext-queue-short erpnext-queue-long erpnext-scheduler erpnext-frontend
+```
+6. If bootstrap reports duplicate module errors but `bench list-apps` already shows `erpnext`, run recovery migrate:
+```bash
+docker compose --env-file .env.production exec -T erpnext-backend sh -lc \
+'cd /home/frappe/frappe-bench && bench --site "<ERP_HOST>" migrate'
+```
+7. Verify ERPNext services are up:
+```bash
+docker compose --env-file .env.production ps erpnext-db erpnext-frontend erpnext-backend erpnext-websocket erpnext-queue-short erpnext-queue-long erpnext-scheduler
+```
+8. Recreate oauth2-proxy services after any OIDC/env changes:
 ```bash
 docker compose --env-file .env.production up -d oauth2-proxy-portal oauth2-proxy-meshweb
 ```
-5. Apply Seafile trusted-origin/CSRF settings (recommended after first Seafile start or hostname changes):
+9. Apply Seafile trusted-origin/CSRF settings (recommended after first Seafile start or hostname changes):
 ```bash
 ./scripts/configure_seafile_csrf.sh .env.production
 docker compose --env-file .env.production up -d --force-recreate seafile
 ```
-6. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
+10. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
 ```bash
 docker compose --env-file .env.production logs --tail=120 certbot nginx
 ```
@@ -129,6 +147,7 @@ docker compose --env-file .env.production logs --tail=120
    - `https://<TICKETS_HOST>`
    - `https://<CRM_HOST>`
    - `https://<HR_HOST>`
+   - `https://<ERP_HOST>`
    - `https://<FILES_HOST>`
    - `https://<PENPOT_HOST>`
    - `https://<STATUS_HOST>`
@@ -171,7 +190,7 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, EspoCRM, Seafile, Penpot, and OrangeHRM.
+   Sync Keycloak client redirect URIs/web origins for mesh-web, portal, guacamole, BookStack, osTicket, EspoCRM, OrangeHRM, ERPNext, Seafile, and Penpot.
 2. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
 3. `./scripts/install_osticket_oauth2_plugin.sh`

@@ -178,6 +178,25 @@
       ]
     },
     {
+      "clientId": "erpnext",
+      "name": "ERPNext",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__ERPNEXT_OIDC_CLIENT_SECRET__",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__ERP_HOST__/*",
+        "http://__ERP_HOST__/*"
+      ],
+      "webOrigins": [
+        "https://__ERP_HOST__",
+        "http://__ERP_HOST__"
+      ]
+    },
+    {
       "clientId": "seafile",
       "name": "Seafile",
       "enabled": true,

@@ -45,6 +45,7 @@ MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
+ERP_HOST="$(env_get ERP_HOST "erp.${BASE_DOMAIN}")"
 FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
 PENPOT_HOST="$(env_get PENPOT_HOST "penpot.${BASE_DOMAIN}")"
 STATUS_HOST="$(env_get STATUS_HOST "status.${BASE_DOMAIN}")"
@@ -125,6 +126,7 @@ sed \
   -e "s|__TICKETS_HOST__|$(escape_sed_replacement "$TICKETS_HOST")|g" \
   -e "s|__CRM_HOST__|$(escape_sed_replacement "$CRM_HOST")|g" \
   -e "s|__HR_HOST__|$(escape_sed_replacement "$HR_HOST")|g" \
+  -e "s|__ERP_HOST__|$(escape_sed_replacement "$ERP_HOST")|g" \
   -e "s|__FILES_HOST__|$(escape_sed_replacement "$FILES_HOST")|g" \
   -e "s|__PENPOT_HOST__|$(escape_sed_replacement "$PENPOT_HOST")|g" \
   -e "s|__STATUS_HOST__|$(escape_sed_replacement "$STATUS_HOST")|g" \
