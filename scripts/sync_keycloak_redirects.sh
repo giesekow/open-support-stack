@@ -166,8 +166,26 @@ ORANGEHRM_CLIENT_UUID="$(
 )"
 
 if [[ -z "$ORANGEHRM_CLIENT_UUID" || "$ORANGEHRM_CLIENT_UUID" == "id" ]]; then
-  echo "Client '$ORANGEHRM_CLIENT_ID' not found in realm '$REALM'"
-  exit 1
+  echo "==> Client '$ORANGEHRM_CLIENT_ID' not found, creating it"
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh create clients -r "$REALM" \
+    -s "clientId=$ORANGEHRM_CLIENT_ID" \
+    -s "name=OrangeHRM" \
+    -s "enabled=true" \
+    -s "protocol=openid-connect" \
+    -s "publicClient=false" \
+    -s "secret=$(env_get ORANGEHRM_OIDC_CLIENT_SECRET "replace-with-orangehrm-oidc-client-secret")" \
+    -s "standardFlowEnabled=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "serviceAccountsEnabled=false" \
+    >/dev/null
+  ORANGEHRM_CLIENT_UUID="$(
+    dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$ORANGEHRM_CLIENT_ID" --fields id --format csv --noquotes \
+      | tr -d '\r' | tail -n 1
+  )"
+  if [[ -z "$ORANGEHRM_CLIENT_UUID" || "$ORANGEHRM_CLIENT_UUID" == "id" ]]; then
+    echo "Failed to create/find client '$ORANGEHRM_CLIENT_ID' in realm '$REALM'"
+    exit 1
+  fi
 fi
 
 echo "==> Updating redirect URIs/web origins for client '$ORANGEHRM_CLIENT_ID'"
@@ -182,8 +200,26 @@ ERPNEXT_CLIENT_UUID="$(
 )"
 
 if [[ -z "$ERPNEXT_CLIENT_UUID" || "$ERPNEXT_CLIENT_UUID" == "id" ]]; then
-  echo "Client '$ERPNEXT_CLIENT_ID' not found in realm '$REALM'"
-  exit 1
+  echo "==> Client '$ERPNEXT_CLIENT_ID' not found, creating it"
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh create clients -r "$REALM" \
+    -s "clientId=$ERPNEXT_CLIENT_ID" \
+    -s "name=ERPNext" \
+    -s "enabled=true" \
+    -s "protocol=openid-connect" \
+    -s "publicClient=false" \
+    -s "secret=$(env_get ERPNEXT_OIDC_CLIENT_SECRET "replace-with-erpnext-oidc-client-secret")" \
+    -s "standardFlowEnabled=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "serviceAccountsEnabled=false" \
+    >/dev/null
+  ERPNEXT_CLIENT_UUID="$(
+    dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$ERPNEXT_CLIENT_ID" --fields id --format csv --noquotes \
+      | tr -d '\r' | tail -n 1
+  )"
+  if [[ -z "$ERPNEXT_CLIENT_UUID" || "$ERPNEXT_CLIENT_UUID" == "id" ]]; then
+    echo "Failed to create/find client '$ERPNEXT_CLIENT_ID' in realm '$REALM'"
+    exit 1
+  fi
 fi
 
 echo "==> Updating redirect URIs/web origins for client '$ERPNEXT_CLIENT_ID'"
