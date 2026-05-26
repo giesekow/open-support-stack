@@ -59,7 +59,7 @@ This document describes how to connect the main support apps to Keycloak OIDC, i
 
 ### OrangeHRM Provider Configuration
 
-In OrangeHRM `Admin -> OpenID Providers -> Add Provider`:
+In OrangeHRM `Admin -> Configuration -> Social Media Authentication`:
 
 1. `Name`: e.g. `Keycloak`
 2. `Provider URL`:
