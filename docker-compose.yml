@@ -752,6 +752,7 @@ services:
       ERP_HOST: ${ERP_HOST:-erp.example.com}
       FILES_HOST: ${FILES_HOST:-files.example.com}
       PENPOT_HOST: ${PENPOT_HOST:-penpot.example.com}
+      PENPOT_MCP_HOST: ${PENPOT_MCP_HOST:-penpot-mcp.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
       NGINX_MODE: ${NGINX_MODE:-https}
       ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
@@ -773,9 +774,10 @@ services:
       ERP_HOST="$${ERP_HOST:-erp.$${BASE_DOMAIN}}";
       FILES_HOST="$${FILES_HOST:-files.$${BASE_DOMAIN}}";
       PENPOT_HOST="$${PENPOT_HOST:-penpot.$${BASE_DOMAIN}}";
+      PENPOT_MCP_HOST="$${PENPOT_MCP_HOST:-penpot-mcp.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
       NGINX_MODE="$${NGINX_MODE:-https}";
-      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$ERP_HOST $$FILES_HOST $$PENPOT_HOST $$STATUS_HOST";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$ERP_HOST $$FILES_HOST $$PENPOT_HOST $$PENPOT_MCP_HOST $$STATUS_HOST";
 
       if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
         echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
@@ -805,6 +807,7 @@ services:
           -e "s|__ERP_HOST__|$$ERP_HOST|g" \
           -e "s|__FILES_HOST__|$$FILES_HOST|g" \
           -e "s|__PENPOT_HOST__|$$PENPOT_HOST|g" \
+          -e "s|__PENPOT_MCP_HOST__|$$PENPOT_MCP_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
           "$$TEMPLATE_PATH" > /etc/nginx/conf.d/support-stack.conf;
       }
@@ -859,6 +862,7 @@ services:
           - ${ERP_HOST:-erp.example.com}
           - ${FILES_HOST:-files.example.com}
           - ${PENPOT_HOST:-penpot.example.com}
+          - ${PENPOT_MCP_HOST:-penpot-mcp.example.com}
           - ${STATUS_HOST:-status.example.com}
 
   certbot:
