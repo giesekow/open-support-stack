@@ -44,10 +44,22 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+env_get() {
+  local key="$1"
+  local value
+
+  value="$(sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value:1:${#value}-2}"
+  elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+
+  printf '%s' "$value"
+}
+
+GUACAMOLE_DB_USER="$(env_get GUACAMOLE_DB_USER)"
+GUACAMOLE_DB_NAME="$(env_get GUACAMOLE_DB_NAME)"
 
 if [[ -z "${GUACAMOLE_DB_USER:-}" || -z "${GUACAMOLE_DB_NAME:-}" ]]; then
   echo "Missing GUACAMOLE_DB_USER or GUACAMOLE_DB_NAME in $ENV_FILE" >&2
