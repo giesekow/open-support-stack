@@ -169,6 +169,13 @@ Common fields:
 
 1. Username claim usually `preferred_username`.
 2. If forcing fresh login each time is desired, append prompt behavior at auth request level (`prompt=login`) where supported.
+3. The PostgreSQL-backed Guacamole user must have exactly the same username as the `preferred_username` claim. Otherwise OIDC authentication succeeds, but database connections and administrative permissions are not attached to the session.
+4. To grant an existing Keycloak identity Guacamole administrator access without using the local `guacadmin` login:
+   ```bash
+   ./scripts/grant_guacamole_admin.sh \
+     --env-file .env.production \
+     --username '<preferred_username>'
+   ```
 
 ---
 

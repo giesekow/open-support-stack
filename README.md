@@ -209,11 +209,13 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
 
 1. `./scripts/seed_admin_accounts.sh`
    Seed admin/bootstrap accounts across integrated services.
-2. `./scripts/post_seed_vaultwarden_org.sh`
+2. `./scripts/grant_guacamole_admin.sh --env-file <env-file> --username <preferred_username>`
+   Grant Guacamole administrator permissions to an existing Keycloak/OIDC identity. The username must exactly match the Keycloak `preferred_username` claim.
+3. `./scripts/post_seed_vaultwarden_org.sh`
    Post-seed helper for Vaultwarden organization setup.
-3. `./scripts/seed_uptime_kuma_monitors.sh <env-file>`
+4. `./scripts/seed_uptime_kuma_monitors.sh <env-file>`
    Seed Uptime Kuma monitors for stack services.
-4. `./scripts/headscale_api_key.sh <create|list|expire> [options]`
+5. `./scripts/headscale_api_key.sh <create|list|expire> [options]`
    Manage Headscale API keys for mesh-web and API access.
 
 ### Production validation
