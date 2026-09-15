@@ -41,16 +41,38 @@ services:
       - backend
 
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.37.2
     container_name: support-vaultwarden
     restart: unless-stopped
     environment:
       DOMAIN: ${VAULTWARDEN_DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED}
+      INVITATIONS_ALLOWED: ${VAULTWARDEN_INVITATIONS_ALLOWED:-true}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
       WEBSOCKET_ENABLED: "true"
+      SMTP_HOST: ${VAULTWARDEN_SMTP_HOST}
+      SMTP_PORT: ${VAULTWARDEN_SMTP_PORT:-587}
+      SMTP_SECURITY: ${VAULTWARDEN_SMTP_SECURITY:-starttls}
+      SMTP_FROM: ${VAULTWARDEN_SMTP_FROM}
+      SMTP_FROM_NAME: ${VAULTWARDEN_SMTP_FROM_NAME:-Vaultwarden}
+      SMTP_USERNAME: ${VAULTWARDEN_SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD:-}
+      SMTP_AUTH_MECHANISM: ${VAULTWARDEN_SMTP_AUTH_MECHANISM:-Login}
     volumes:
       - vaultwarden-data:/data
+    networks:
+      - backend
+
+  mailpit:
+    image: axllent/mailpit:v1.30.5
+    container_name: support-mailpit
+    restart: unless-stopped
+    profiles:
+      - development
+    expose:
+      - "1025"
+    ports:
+      - "127.0.0.1:8025:8025"
     networks:
       - backend
 

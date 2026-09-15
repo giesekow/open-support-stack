@@ -24,12 +24,14 @@ cp .env.example .env
 ```
 4. Open the portal:
    `https://<SUPPORT_HOST from .env>`
+5. Open Mailpit to inspect development emails:
+   `http://127.0.0.1:8025`
 
 ### Useful dev commands
 
 1. Restart stack:
 ```bash
-docker compose down && docker compose up -d
+docker compose --profile development down && docker compose --profile development up -d
 ```
 2. Check logs:
 ```bash

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-docker compose down
+docker compose --profile development down
 
 if [[ -x ./scripts/render_headscale_config.sh ]]; then
   ./scripts/render_headscale_config.sh .env
@@ -15,7 +15,7 @@ if [[ -x ./scripts/render_portal_index.sh ]]; then
   ./scripts/render_portal_index.sh .env
 fi
 
-docker compose up -d
+docker compose --profile development up -d
 
 if [[ -x ./scripts/sync_keycloak_redirects.sh ]]; then
   for i in 1 2 3 4 5; do
