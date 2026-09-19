@@ -27,6 +27,84 @@ cp .env.example .env
 5. Open Mailpit to inspect development emails:
    `http://127.0.0.1:8025`
 
+### Shared SMTP configuration
+
+Vaultwarden, Penpot, and the OrangeHRM leave notifier use the same `SMTP_*` settings. Configure SMTP once in the environment file instead of adding application-specific SMTP variables.
+
+For implicit TLS on port 465:
+
+```dotenv
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_SECURITY=force_tls
+SMTP_SECURE=true
+SMTP_STARTTLS=false
+SMTP_USER=mailer@example.com
+SMTP_PASS=replace-with-smtp-password
+SMTP_FROM=no-reply@example.com
+```
+
+For STARTTLS on port 587, use `SMTP_SECURITY=starttls`, `SMTP_SECURE=false`, and `SMTP_STARTTLS=true`. Local development uses `mailpit:1025` with `SMTP_SECURITY=off`, `SMTP_SECURE=false`, and `SMTP_STARTTLS=false`.
+
+### OrangeHRM leave notifications
+
+The `orangehrm-leave-notifier` service sends scheduled summaries of approved or taken leave without modifying OrangeHRM. Its database session is read-only, and delivery history is stored separately in the `orangehrm-leave-notifier-data` volume to prevent duplicate messages.
+
+Rules are defined in `config/orangehrm/leave-notifications.json`. Each rule supports:
+
+1. `schedule.days` and `schedule.time` in the configured `TZ`.
+2. `start_offset_days` and `days` to select today, tomorrow, or a future date range.
+3. `recipients` for one or more email addresses.
+4. `filters.subunits`, `filters.locations`, and `filters.employee_emails`. Empty lists include everyone.
+5. `statuses`: `2` for approved/scheduled leave and `3` for taken leave.
+6. `send_when_empty` to optionally send a message when nobody matches.
+7. `include_leave_type` to disclose the leave category. It defaults to `false` in the supplied rule to avoid exposing sensitive leave reasons.
+
+Email presentation uses sandboxed Jinja templates with strict variables and HTML auto-escaping:
+
+1. `config/orangehrm/email-templates/daily-absence-summary.html.j2`
+2. `config/orangehrm/email-templates/daily-absence-summary.txt.j2`
+
+Select templates per rule with `templates.html` and `templates.text`. The `subject` field is also a Jinja template. Available values are:
+
+1. `period.start`, `period.end`, and `period_label`.
+2. `count` and `generated_at`.
+3. `rule.id`.
+4. `absences`, with `date`, `date_label`, `employee_id`, `employee_name`, `employee_email`, `type_label`, `duration`, `subunit`, `locations`, `locations_label`, and `status`.
+
+Raw database rows are never passed to templates. When `include_leave_type` is false, `type_label` contains only `Leave`.
+
+Development SMTP points to Mailpit by default. Test a rule without sending:
+
+```bash
+docker compose --env-file .env run --rm orangehrm-leave-notifier \
+  --run-now --rule daily-absence-summary --dry-run --force
+```
+
+Send a test even when no leave records match, then inspect it at `http://127.0.0.1:8025`:
+
+```bash
+docker compose --env-file .env --profile development up -d mailpit orangehrm-db
+docker compose --env-file .env run --rm orangehrm-leave-notifier \
+  --run-now --rule daily-absence-summary --send-empty --force
+```
+
+Start the continuous scheduler:
+
+```bash
+docker compose --env-file .env up -d orangehrm-leave-notifier
+docker compose --env-file .env logs -f orangehrm-leave-notifier
+```
+
+Use `--date YYYY-MM-DD` to preview another date. `--force` intentionally bypasses duplicate protection and should only be used for testing or an approved resend.
+
+Validate the production query and templates without printing employee details or sending email:
+
+```bash
+docker compose --env-file .env run --rm orangehrm-leave-notifier \
+  --run-now --rule daily-absence-summary --send-empty --validate-only --force
+```
+
 ### Useful dev commands
 
 1. Restart stack:

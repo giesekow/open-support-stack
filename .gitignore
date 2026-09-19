@@ -32,6 +32,8 @@ nginx/certs/*.srl
 *.log
 tmp/
 *.tmp
+__pycache__/
+*.py[cod]
 
 # Docker override/local files
 docker-compose.override.yml

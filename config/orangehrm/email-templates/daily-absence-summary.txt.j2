@@ -1,0 +1,12 @@
+Employee absence summary
+{{ period_label }}
+
+{% if absences %}
+{% for absence in absences %}
+- {{ absence.date_label }}: {{ absence.employee_name }} | {{ absence.type_label }} | {{ absence.duration }} | {{ absence.subunit }} | {{ absence.locations_label }} | {{ absence.status }}
+{% endfor %}
+{% else %}
+No employees are absent for this period.
+{% endif %}
+
+Generated automatically at {{ generated_at }}.

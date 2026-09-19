@@ -1,0 +1,29 @@
+{
+  "timezone": "Europe/Berlin",
+  "rules": [
+    {
+      "id": "daily-absence-summary",
+      "enabled": true,
+      "schedule": {
+        "days": ["mon", "tue", "wed", "thu", "fri"],
+        "time": "08:00"
+      },
+      "start_offset_days": 0,
+      "days": 1,
+      "statuses": [2, 3],
+      "recipients": ["${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT}"],
+      "subject": "Employee absence summary: {{ period_label }} ({{ count }})",
+      "templates": {
+        "html": "daily-absence-summary.html.j2",
+        "text": "daily-absence-summary.txt.j2"
+      },
+      "send_when_empty": false,
+      "include_leave_type": false,
+      "filters": {
+        "subunits": [],
+        "locations": [],
+        "employee_emails": []
+      }
+    }
+  ]
+}

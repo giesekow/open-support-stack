@@ -71,8 +71,10 @@ In OrangeHRM `Admin -> Configuration -> Social Media Authentication`:
 Notes:
 
 1. OrangeHRM performs OIDC discovery server-side from inside the container.
-2. If internal HTTPS is not reachable/trusted, discovery fails before browser redirect.
-3. Using `http://<SSO_HOST>/realms/<REALM>` for provider discovery still results in external browser redirect to Keycloak HTTPS endpoints when Keycloak issuer/endpoints are HTTPS.
+2. Keep the provider URL on the SSO hostname so discovery returns Keycloak's public HTTPS issuer and authorization endpoint.
+3. Set `ORANGEHRM_OIDC_INTERNAL_BASE_URI=http://keycloak:8080/realms/<REALM>` in the stack environment. The startup patch uses this internal base only for the token, user-info, and JWKS requests made by OrangeHRM inside Docker.
+4. This split is required when the browser can reach public HTTPS but the OrangeHRM container cannot connect back to the reverse proxy on port `443`.
+5. The patch is idempotently applied from `config/orangehrm/patch-oidc-internal-endpoints.php` whenever the OrangeHRM container starts.
 
 ### Mapping Notes (Important)
 
@@ -93,6 +95,7 @@ Example:
 
 1. `500` on `/openidauth/openIdCredentials/...`:
    - container cannot reach SSO host or TLS trust issue.
+   - the browser redirect may work while the callback fails if OrangeHRM cannot reach the discovered HTTPS token endpoint; verify `ORANGEHRM_OIDC_INTERNAL_BASE_URI` is present in the container.
    - check `/var/www/html/src/log/orangehrm.log`; common errors are:
      - `Failed to connect ... port 443`
      - `SSL certificate problem: unable to get local issuer certificate`
@@ -201,11 +204,48 @@ Common fields:
 
 If discovery is disabled, configure all endpoints manually and set `OIDC_PUBLIC_KEY` if required by your mode.
 
+When TLS is terminated by an upstream reverse proxy, set `BOOKSTACK_OIDC_HOST_IP` to that proxy's reachable IP. The BookStack-only host override keeps the public HTTPS issuer name and certificate validation intact while avoiding Docker's internal nginx alias, which may listen only on HTTP in this mode.
+
 ### Mapping Notes
 
 1. `OIDC_DISPLAY_NAME_CLAIMS=name` is a good default.
 2. Email claim is used for account linkage/creation behavior based on BookStack auth settings.
 3. Error `Missing required configuration "keys"` usually indicates incorrect discovery/manual key setup.
+
+---
+
+## ERPNext
+
+### Keycloak Client
+
+1. `clientId`: `erpnext` (or `ERPNEXT_OIDC_CLIENT_ID`)
+2. `Client authentication`: `On`
+3. `Valid redirect URIs`:
+   - `https://<ERP_HOST>/*`
+4. `Web origins`:
+   - `https://<ERP_HOST>`
+
+### ERPNext Provider Configuration
+
+Run the idempotent helper after the ERPNext site has been bootstrapped:
+
+```bash
+./scripts/configure_erpnext_oidc.sh .env.production
+```
+
+The helper configures Frappe's native Keycloak provider with `openid profile email` and enables social signup. It deliberately splits the endpoints:
+
+1. Browser authorization: `https://<SSO_HOST>/realms/<REALM>/protocol/openid-connect/auth`
+2. Container token exchange: `http://keycloak:8080/realms/<REALM>/protocol/openid-connect/token`
+3. Container user info: `http://keycloak:8080/realms/<REALM>/protocol/openid-connect/userinfo`
+
+This keeps browser authentication on public HTTPS while avoiding reverse-proxy TLS hairpin and certificate-chain failures for server-side requests inside Docker.
+
+### Mapping Notes
+
+1. `preferred_username` is the provider user identifier.
+2. `email`, `given_name`, and `family_name` populate the Frappe user profile.
+3. New Keycloak users are created in ERPNext because the provider's `sign_ups` setting is `Allow`.
 
 ---
 

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Employee absence summary</title>
+  </head>
+  <body style="margin:0;background:#f4f1eb;color:#20251f;font-family:Georgia,'Times New Roman',serif;">
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent;">{{ count }} employee absence record{% if count != 1 %}s{% endif %} for {{ period_label }}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f1eb;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:760px;background:#fffdf8;border:1px solid #d9d4ca;border-radius:14px;overflow:hidden;">
+            <tr>
+              <td style="padding:30px 34px;background:#173f35;color:#fffdf8;">
+                <div style="font:700 12px/1.3 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:#c6dd7f;">People availability</div>
+                <h1 style="margin:9px 0 6px;font-size:31px;line-height:1.15;font-weight:normal;">Employee absence summary</h1>
+                <div style="font:15px/1.5 Arial,sans-serif;color:#d7e4df;">{{ period_label }}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 34px;">
+                {% if absences %}
+                <p style="margin:0 0 20px;font:15px/1.6 Arial,sans-serif;color:#535b55;">{{ count }} absence record{% if count != 1 %}s{% endif %} {% if count == 1 %}requires{% else %}require{% endif %} awareness for this period.</p>
+                <div style="overflow-x:auto;">
+                  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font:14px/1.45 Arial,sans-serif;">
+                    <thead>
+                      <tr style="background:#ece8de;color:#314038;text-align:left;">
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Date</th>
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Employee</th>
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Type</th>
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Duration</th>
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Team / location</th>
+                        <th style="padding:11px 10px;border-bottom:2px solid #b8b2a6;">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for absence in absences %}
+                      <tr>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;white-space:nowrap;">{{ absence.date_label }}</td>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;font-weight:bold;">{{ absence.employee_name }}</td>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;">{{ absence.type_label }}</td>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;white-space:nowrap;">{{ absence.duration }}</td>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;">{{ absence.subunit }}<br><span style="color:#6d756f;">{{ absence.locations_label }}</span></td>
+                        <td style="padding:13px 10px;border-bottom:1px solid #e4e0d7;">{{ absence.status }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <div style="padding:24px;background:#eef3e4;border-left:4px solid #8aa63f;font:16px/1.6 Arial,sans-serif;">No employees are absent for this period.</div>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 34px;background:#ece8de;font:12px/1.5 Arial,sans-serif;color:#69716b;">Generated automatically at {{ generated_at }}. Please do not reply to this message.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

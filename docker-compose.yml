@@ -50,14 +50,14 @@ services:
       INVITATIONS_ALLOWED: ${VAULTWARDEN_INVITATIONS_ALLOWED:-true}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
       WEBSOCKET_ENABLED: "true"
-      SMTP_HOST: ${VAULTWARDEN_SMTP_HOST}
-      SMTP_PORT: ${VAULTWARDEN_SMTP_PORT:-587}
-      SMTP_SECURITY: ${VAULTWARDEN_SMTP_SECURITY:-starttls}
-      SMTP_FROM: ${VAULTWARDEN_SMTP_FROM}
-      SMTP_FROM_NAME: ${VAULTWARDEN_SMTP_FROM_NAME:-Vaultwarden}
-      SMTP_USERNAME: ${VAULTWARDEN_SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD:-}
-      SMTP_AUTH_MECHANISM: ${VAULTWARDEN_SMTP_AUTH_MECHANISM:-Login}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Vaultwarden}
+      SMTP_USERNAME: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASS:-}
+      SMTP_AUTH_MECHANISM: ${SMTP_AUTH_MECHANISM:-Login}
     volumes:
       - vaultwarden-data:/data
     networks:
@@ -124,6 +124,8 @@ services:
       - bookstack-data:/config
       - ./nginx/certs:/custom-certs:ro
       - ./config/bookstack/custom-cont-init.d:/custom-cont-init.d:ro
+    extra_hosts:
+      - "${SSO_HOST:-sso.example.com}:${BOOKSTACK_OIDC_HOST_IP:-host-gateway}"
     networks:
       - backend
 
@@ -282,6 +284,7 @@ services:
     restart: unless-stopped
     depends_on:
       - orangehrm-db
+      - keycloak
     environment:
       ORANGEHRM_DATABASE_HOST: orangehrm-db
       ORANGEHRM_DATABASE_PORT: 3306
@@ -295,17 +298,50 @@ services:
       ORANGEHRM_ADMIN_FIRSTNAME: ${ORANGEHRM_ADMIN_FIRSTNAME}
       ORANGEHRM_ADMIN_LASTNAME: ${ORANGEHRM_ADMIN_LASTNAME}
       ORANGEHRM_ADMIN_EMAIL: ${ORANGEHRM_ADMIN_EMAIL}
+      ORANGEHRM_OIDC_INTERNAL_BASE_URI: ${ORANGEHRM_OIDC_INTERNAL_BASE_URI:-http://keycloak:8080/realms/support}
     command: >
       /bin/sh -c '
       set -eu;
       if [ -f /usr/local/share/ca-certificates/support-stack-ca.crt ]; then
         update-ca-certificates >/dev/null 2>&1 || true;
       fi;
+      php /usr/local/bin/patch-orangehrm-oidc.php;
       exec apache2-foreground
       '
     volumes:
       - orangehrm-data:/var/www/html
       - ./nginx/certs/support-stack-ca.crt:/usr/local/share/ca-certificates/support-stack-ca.crt:ro
+      - ./config/orangehrm/patch-oidc-internal-endpoints.php:/usr/local/bin/patch-orangehrm-oidc.php:ro
+    networks:
+      - backend
+
+  orangehrm-leave-notifier:
+    build:
+      context: ./services/orangehrm-leave-notifier
+    container_name: support-orangehrm-leave-notifier
+    restart: unless-stopped
+    depends_on:
+      - orangehrm-db
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      ORANGEHRM_DB_HOST: orangehrm-db
+      ORANGEHRM_DB_PORT: 3306
+      ORANGEHRM_DB_NAME: ${ORANGEHRM_DB_NAME}
+      ORANGEHRM_DB_USER: ${ORANGEHRM_DB_USER}
+      ORANGEHRM_DB_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
+      ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT: ${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT:-${ORANGEHRM_ADMIN_EMAIL}}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_HOST: ${SMTP_HOST}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_PORT: ${SMTP_PORT:-587}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_FROM: ${SMTP_FROM}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_USERNAME: ${SMTP_USER:-}
+      ORANGEHRM_LEAVE_NOTIFIER_SMTP_PASSWORD: ${SMTP_PASS:-}
+      ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS: ${ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS:-60}
+      ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR: /config/templates
+    volumes:
+      - ./config/orangehrm/leave-notifications.json:/config/leave-notifications.json:ro
+      - ./config/orangehrm/email-templates:/config/templates:ro
+      - orangehrm-leave-notifier-data:/data
     networks:
       - backend
 
@@ -581,13 +617,14 @@ services:
       PENPOT_OIDC_NAME_ATTR: name
       PENPOT_OIDC_EMAIL_ATTR: email
       PENPOT_OIDC_USER_INFO_SOURCE: userinfo
-      PENPOT_SMTP_HOST: ${PENPOT_SMTP_HOST}
-      PENPOT_SMTP_PORT: ${PENPOT_SMTP_PORT:-587}
-      PENPOT_SMTP_USERNAME: ${PENPOT_SMTP_USERNAME}
-      PENPOT_SMTP_PASSWORD: ${PENPOT_SMTP_PASSWORD}
-      PENPOT_SMTP_TLS: ${PENPOT_SMTP_TLS:-true}
-      PENPOT_SMTP_DEFAULT_FROM: ${PENPOT_SMTP_DEFAULT_FROM:-Penpot <no-reply@example.com>}
-      PENPOT_SMTP_DEFAULT_REPLY_TO: ${PENPOT_SMTP_DEFAULT_REPLY_TO:-Penpot <support@example.com>}
+      PENPOT_SMTP_HOST: ${SMTP_HOST}
+      PENPOT_SMTP_PORT: ${SMTP_PORT:-587}
+      PENPOT_SMTP_USERNAME: ${SMTP_USER:-}
+      PENPOT_SMTP_PASSWORD: ${SMTP_PASS:-}
+      PENPOT_SMTP_SSL: ${SMTP_SECURE:-false}
+      PENPOT_SMTP_TLS: ${SMTP_STARTTLS:-true}
+      PENPOT_SMTP_DEFAULT_FROM: ${SMTP_FROM}
+      PENPOT_SMTP_DEFAULT_REPLY_TO: ${SMTP_FROM}
       PENPOT_OBJECTS_STORAGE_BACKEND: fs
       PENPOT_OBJECTS_STORAGE_FS_DIRECTORY: /opt/data/assets
     volumes:
@@ -949,6 +986,7 @@ volumes:
   espocrm-data:
   orangehrm-db-data:
   orangehrm-data:
+  orangehrm-leave-notifier-data:
   erpnext-db-data:
   erpnext-sites:
   seafile-db-data:
