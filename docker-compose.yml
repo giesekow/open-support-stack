@@ -198,6 +198,7 @@ services:
     image: headscale/headscale:0.28.0
     container_name: support-headscale
     restart: unless-stopped
+    profiles: ["headscale"]
     command: serve
     volumes:
       - headscale-data:/var/lib/headscale
@@ -210,8 +211,42 @@ services:
     image: ghcr.io/gurucomputing/headscale-ui:latest
     container_name: support-headscale-ui
     restart: unless-stopped
+    profiles: ["headscale"]
     depends_on:
       - headscale
+    networks:
+      - backend
+
+  netbird-server:
+    image: ${NETBIRD_SERVER_IMAGE:-netbirdio/netbird-server@sha256:d1da0c0179c9e6f2ab7b48be54d06341b11037855a9426b9f2536aa79f13360b}
+    container_name: support-netbird-server
+    restart: unless-stopped
+    command: ["--config", "/etc/netbird/config.yaml"]
+    volumes:
+      - netbird-data:/var/lib/netbird
+      - ./config/netbird/config.yaml:/etc/netbird/config.yaml:ro
+    ports:
+      - "${NETBIRD_STUN_PORT:-3478}:3478/udp"
+    extra_hosts:
+      # Keep the public HTTPS issuer while avoiding nginx's HTTP-only alias.
+      - "${SSO_HOST:-sso.example.com}:${NETBIRD_SSO_HOST_IP:-host-gateway}"
+    networks:
+      - backend
+
+  netbird-dashboard:
+    image: ${NETBIRD_DASHBOARD_IMAGE:-netbirdio/dashboard@sha256:fa2d8b02a81761e4d2a22df4041d13316b7635f1e93273eafeb53d4991e55b5a}
+    container_name: support-netbird-dashboard
+    restart: unless-stopped
+    depends_on:
+      - netbird-server
+    env_file:
+      - ./config/netbird/dashboard.env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/ >/dev/null && curl -fsS http://netbird-server/api/instance >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - backend
 
@@ -698,6 +733,7 @@ services:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
     container_name: support-oauth2-proxy-meshweb
     restart: unless-stopped
+    profiles: ["headscale"]
     depends_on:
       - keycloak
       - headscale-ui
@@ -785,15 +821,14 @@ services:
       - vaultwarden
       - bookstack
       - guacamole
-      - headscale
-      - headscale-ui
+      - netbird-server
+      - netbird-dashboard
       - osticket
       - espocrm
       - orangehrm
       - erpnext-frontend
       - seafile
       - penpot-frontend
-      - oauth2-proxy-meshweb
       - oauth2-proxy-portal
       - uptime-kuma
     environment:
@@ -805,6 +840,7 @@ services:
       REMOTE_HOST: ${REMOTE_HOST:-remote.example.com}
       MESH_HOST: ${MESH_HOST:-mesh.example.com}
       MESH_WEB_HOST: ${MESH_WEB_HOST:-mesh-web.example.com}
+      NETBIRD_HOST: ${NETBIRD_HOST:-netbird.example.com}
       TICKETS_HOST: ${TICKETS_HOST:-tickets.example.com}
       CRM_HOST: ${CRM_HOST:-crm.example.com}
       HR_HOST: ${HR_HOST:-hr.example.com}
@@ -814,6 +850,7 @@ services:
       PENPOT_MCP_HOST: ${PENPOT_MCP_HOST:-penpot-mcp.example.com}
       STATUS_HOST: ${STATUS_HOST:-status.example.com}
       NGINX_MODE: ${NGINX_MODE:-https}
+      NGINX_TRUSTED_PROXY_CIDR: ${NGINX_TRUSTED_PROXY_CIDR:-127.0.0.1/32}
       ENABLE_LETSENCRYPT: ${ENABLE_LETSENCRYPT:-false}
       LETSENCRYPT_PRIMARY_DOMAIN: ${LETSENCRYPT_PRIMARY_DOMAIN:-example.com}
     command: >
@@ -827,6 +864,11 @@ services:
       REMOTE_HOST="$${REMOTE_HOST:-remote.$${BASE_DOMAIN}}";
       MESH_HOST="$${MESH_HOST:-mesh.$${BASE_DOMAIN}}";
       MESH_WEB_HOST="$${MESH_WEB_HOST:-mesh-web.$${BASE_DOMAIN}}";
+      NETBIRD_HOST="$${NETBIRD_HOST:-netbird.$${BASE_DOMAIN}}";
+      HEADSCALE_ROUTE_HOST="$$MESH_HOST";
+      if [ "$$NETBIRD_HOST" = "$$MESH_HOST" ]; then
+        HEADSCALE_ROUTE_HOST="headscale-disabled.invalid";
+      fi;
       TICKETS_HOST="$${TICKETS_HOST:-tickets.$${BASE_DOMAIN}}";
       CRM_HOST="$${CRM_HOST:-crm.$${BASE_DOMAIN}}";
       HR_HOST="$${HR_HOST:-hr.$${BASE_DOMAIN}}";
@@ -836,7 +878,8 @@ services:
       PENPOT_MCP_HOST="$${PENPOT_MCP_HOST:-penpot-mcp.$${BASE_DOMAIN}}";
       STATUS_HOST="$${STATUS_HOST:-status.$${BASE_DOMAIN}}";
       NGINX_MODE="$${NGINX_MODE:-https}";
-      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$ERP_HOST $$FILES_HOST $$PENPOT_HOST $$PENPOT_MCP_HOST $$STATUS_HOST";
+      NGINX_TRUSTED_PROXY_CIDR="$${NGINX_TRUSTED_PROXY_CIDR:-127.0.0.1/32}";
+      ALL_HOSTS="$$SUPPORT_HOST $$SSO_HOST $$VAULT_HOST $$DOCS_HOST $$REMOTE_HOST $$MESH_HOST $$MESH_WEB_HOST $$NETBIRD_HOST $$TICKETS_HOST $$CRM_HOST $$HR_HOST $$ERP_HOST $$FILES_HOST $$PENPOT_HOST $$PENPOT_MCP_HOST $$STATUS_HOST";
 
       if [ "$$NGINX_MODE" != "https" ] && [ "$$NGINX_MODE" != "http" ]; then
         echo "Invalid NGINX_MODE=$$NGINX_MODE (expected: https|http)";
@@ -859,7 +902,9 @@ services:
           -e "s|__DOCS_HOST__|$$DOCS_HOST|g" \
           -e "s|__REMOTE_HOST__|$$REMOTE_HOST|g" \
           -e "s|__MESH_HOST__|$$MESH_HOST|g" \
+          -e "s|__HEADSCALE_ROUTE_HOST__|$$HEADSCALE_ROUTE_HOST|g" \
           -e "s|__MESH_WEB_HOST__|$$MESH_WEB_HOST|g" \
+          -e "s|__NETBIRD_HOST__|$$NETBIRD_HOST|g" \
           -e "s|__TICKETS_HOST__|$$TICKETS_HOST|g" \
           -e "s|__CRM_HOST__|$$CRM_HOST|g" \
           -e "s|__HR_HOST__|$$HR_HOST|g" \
@@ -868,6 +913,7 @@ services:
           -e "s|__PENPOT_HOST__|$$PENPOT_HOST|g" \
           -e "s|__PENPOT_MCP_HOST__|$$PENPOT_MCP_HOST|g" \
           -e "s|__STATUS_HOST__|$$STATUS_HOST|g" \
+          -e "s|__NGINX_TRUSTED_PROXY_CIDR__|$$NGINX_TRUSTED_PROXY_CIDR|g" \
           "$$TEMPLATE_PATH" > /etc/nginx/conf.d/support-stack.conf;
       }
 
@@ -915,6 +961,7 @@ services:
           - ${REMOTE_HOST:-remote.example.com}
           - ${MESH_HOST:-mesh.example.com}
           - ${MESH_WEB_HOST:-mesh-web.example.com}
+          - ${NETBIRD_HOST:-netbird.example.com}
           - ${TICKETS_HOST:-tickets.example.com}
           - ${CRM_HOST:-crm.example.com}
           - ${HR_HOST:-hr.example.com}
@@ -963,6 +1010,10 @@ services:
       if [ ! -f "/etc/letsencrypt/live/${LETSENCRYPT_PRIMARY_DOMAIN}/fullchain.pem" ]; then
         certbot certonly --webroot -w /var/www/certbot $$DOMAINS_ARGS --email "${LETSENCRYPT_EMAIL}" --agree-tos --no-eff-email;
         touch /var/www/certbot/.reload-nginx;
+      else
+        # Reissue with --expand when a new stack hostname is added to the SAN set.
+        certbot certonly --webroot -w /var/www/certbot $$DOMAINS_ARGS --cert-name "${LETSENCRYPT_PRIMARY_DOMAIN}" --expand --non-interactive --email "${LETSENCRYPT_EMAIL}" --agree-tos --no-eff-email;
+        touch /var/www/certbot/.reload-nginx;
       fi;
       while true; do
         certbot renew --webroot -w /var/www/certbot --deploy-hook "touch /var/www/certbot/.reload-nginx";
@@ -995,6 +1046,7 @@ volumes:
   penpot-redis-data:
   penpot-assets-data:
   headscale-data:
+  netbird-data:
   uptime-kuma-data:
   letsencrypt-data:
   certbot-www:

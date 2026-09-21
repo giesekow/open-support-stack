@@ -42,6 +42,7 @@ DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 MESH_HOST="$(env_get MESH_HOST "mesh.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
+NETBIRD_HOST="$(env_get NETBIRD_HOST "netbird.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
@@ -123,6 +124,7 @@ sed \
   -e "s|__REMOTE_HOST__|$(escape_sed_replacement "$REMOTE_HOST")|g" \
   -e "s|__MESH_HOST__|$(escape_sed_replacement "$MESH_HOST")|g" \
   -e "s|__MESH_WEB_HOST__|$(escape_sed_replacement "$MESH_WEB_HOST")|g" \
+  -e "s|__NETBIRD_HOST__|$(escape_sed_replacement "$NETBIRD_HOST")|g" \
   -e "s|__TICKETS_HOST__|$(escape_sed_replacement "$TICKETS_HOST")|g" \
   -e "s|__CRM_HOST__|$(escape_sed_replacement "$CRM_HOST")|g" \
   -e "s|__HR_HOST__|$(escape_sed_replacement "$HR_HOST")|g" \

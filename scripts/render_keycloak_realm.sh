@@ -49,6 +49,7 @@ VAULT_HOST="$(env_get VAULT_HOST "vault.${BASE_DOMAIN}")"
 DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
+NETBIRD_HOST="$(env_get NETBIRD_HOST "netbird.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
@@ -66,6 +67,7 @@ ORANGEHRM_OIDC_CLIENT_SECRET="$(env_get ORANGEHRM_OIDC_CLIENT_SECRET "replace-wi
 ERPNEXT_OIDC_CLIENT_SECRET="$(env_get ERPNEXT_OIDC_CLIENT_SECRET "replace-with-erpnext-oidc-client-secret")"
 SEAFILE_OIDC_CLIENT_SECRET="$(env_get SEAFILE_OIDC_CLIENT_SECRET "replace-with-seafile-oidc-client-secret")"
 PENPOT_OIDC_CLIENT_SECRET="$(env_get PENPOT_OIDC_CLIENT_SECRET "replace-with-penpot-oidc-client-secret")"
+NETBIRD_OIDC_CLIENT_SECRET="$(env_get NETBIRD_OIDC_CLIENT_SECRET "replace-with-netbird-oidc-client-secret")"
 
 KEYCLOAK_REALM_ESCAPED="$(escape_sed_replacement "$KEYCLOAK_REALM")"
 SUPPORT_HOST_ESCAPED="$(escape_sed_replacement "$SUPPORT_HOST")"
@@ -74,6 +76,7 @@ VAULT_HOST_ESCAPED="$(escape_sed_replacement "$VAULT_HOST")"
 DOCS_HOST_ESCAPED="$(escape_sed_replacement "$DOCS_HOST")"
 REMOTE_HOST_ESCAPED="$(escape_sed_replacement "$REMOTE_HOST")"
 MESH_WEB_HOST_ESCAPED="$(escape_sed_replacement "$MESH_WEB_HOST")"
+NETBIRD_HOST_ESCAPED="$(escape_sed_replacement "$NETBIRD_HOST")"
 TICKETS_HOST_ESCAPED="$(escape_sed_replacement "$TICKETS_HOST")"
 CRM_HOST_ESCAPED="$(escape_sed_replacement "$CRM_HOST")"
 HR_HOST_ESCAPED="$(escape_sed_replacement "$HR_HOST")"
@@ -91,6 +94,7 @@ ORANGEHRM_OIDC_CLIENT_SECRET_ESCAPED="$(escape_sed_replacement "$ORANGEHRM_OIDC_
 ERPNEXT_OIDC_CLIENT_SECRET_ESCAPED="$(escape_sed_replacement "$ERPNEXT_OIDC_CLIENT_SECRET")"
 SEAFILE_OIDC_CLIENT_SECRET_ESCAPED="$(escape_sed_replacement "$SEAFILE_OIDC_CLIENT_SECRET")"
 PENPOT_OIDC_CLIENT_SECRET_ESCAPED="$(escape_sed_replacement "$PENPOT_OIDC_CLIENT_SECRET")"
+NETBIRD_OIDC_CLIENT_SECRET_ESCAPED="$(escape_sed_replacement "$NETBIRD_OIDC_CLIENT_SECRET")"
 
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
@@ -103,6 +107,7 @@ sed \
   -e "s|__DOCS_HOST__|${DOCS_HOST_ESCAPED}|g" \
   -e "s|__REMOTE_HOST__|${REMOTE_HOST_ESCAPED}|g" \
   -e "s|__MESH_WEB_HOST__|${MESH_WEB_HOST_ESCAPED}|g" \
+  -e "s|__NETBIRD_HOST__|${NETBIRD_HOST_ESCAPED}|g" \
   -e "s|__TICKETS_HOST__|${TICKETS_HOST_ESCAPED}|g" \
   -e "s|__CRM_HOST__|${CRM_HOST_ESCAPED}|g" \
   -e "s|__HR_HOST__|${HR_HOST_ESCAPED}|g" \
@@ -120,6 +125,7 @@ sed \
   -e "s|__ERPNEXT_OIDC_CLIENT_SECRET__|${ERPNEXT_OIDC_CLIENT_SECRET_ESCAPED}|g" \
   -e "s|__SEAFILE_OIDC_CLIENT_SECRET__|${SEAFILE_OIDC_CLIENT_SECRET_ESCAPED}|g" \
   -e "s|__PENPOT_OIDC_CLIENT_SECRET__|${PENPOT_OIDC_CLIENT_SECRET_ESCAPED}|g" \
+  -e "s|__NETBIRD_OIDC_CLIENT_SECRET__|${NETBIRD_OIDC_CLIENT_SECRET_ESCAPED}|g" \
   "$TPL" > "$TMP_OUT"
 
 if grep -q '__[A-Z0-9_]\+__' "$TMP_OUT"; then

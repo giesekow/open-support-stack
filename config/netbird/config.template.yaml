@@ -1,0 +1,39 @@
+server:
+  listenAddress: ":80"
+  exposedAddress: "https://__NETBIRD_HOST__:443"
+  stunPorts:
+    - 3478
+  metricsPort: 9090
+  healthcheckAddress: ":9000"
+  logLevel: "info"
+  logFile: "console"
+  disableAnonymousMetrics: __NETBIRD_DISABLE_ANONYMOUS_METRICS__
+
+  authSecret: "__NETBIRD_RELAY_AUTH_SECRET__"
+  dataDir: "/var/lib/netbird"
+
+  auth:
+    issuer: "https://__NETBIRD_HOST__/oauth2"
+    localAuthDisabled: false
+    signKeyRefreshEnabled: true
+    sessionCookieEncryptionKey: "__NETBIRD_SESSION_COOKIE_KEY__"
+    dashboardRedirectURIs:
+      - "https://__NETBIRD_HOST__/nb-auth"
+      - "https://__NETBIRD_HOST__/nb-silent-auth"
+    dashboardPostLogoutRedirectURIs:
+      - "https://__NETBIRD_HOST__/"
+    cliRedirectURIs:
+      - "http://localhost:53000/"
+    owner:
+      email: "__NETBIRD_ADMIN_EMAIL__"
+      password: "__NETBIRD_ADMIN_PASSWORD_HASH__"
+
+  reverseProxy:
+    trustedHTTPProxies:
+      - "__NETBIRD_TRUSTED_PROXY_CIDR__"
+    trustedPeers:
+      - "__NETBIRD_TRUSTED_PROXY_CIDR__"
+
+  store:
+    engine: "sqlite"
+    encryptionKey: "__NETBIRD_DATASTORE_ENCRYPTION_KEY__"

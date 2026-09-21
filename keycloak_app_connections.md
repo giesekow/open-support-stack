@@ -249,6 +249,44 @@ This keeps browser authentication on public HTTPS while avoiding reverse-proxy T
 
 ---
 
+## NetBird
+
+NetBird is deployed in parallel with Headscale during evaluation. Its embedded local identity provider remains enabled for a break-glass owner, while Keycloak is added as an external connector.
+
+### Keycloak Client
+
+1. `clientId`: `netbird` (or `NETBIRD_OIDC_CLIENT_ID`)
+2. `Client authentication`: `On`
+3. `Standard flow`: `On`
+4. Valid redirect URI: `https://<NETBIRD_HOST>/oauth2/callback/*`
+5. Valid post-logout redirect URI: `https://<NETBIRD_HOST>/oauth2/logout/callback`
+6. Web origin: `https://<NETBIRD_HOST>`
+
+`scripts/sync_keycloak_redirects.sh` creates or updates this client and adds a group-membership mapper named `groups`. The wildcard is limited to NetBird's dynamic connector callback path; NetBird assigns the final connector ID when the provider is saved.
+
+### NetBird Provider Configuration
+
+1. Sign in using `NETBIRD_ADMIN_EMAIL` and `NETBIRD_ADMIN_PASSWORD`.
+2. Open `Settings → Identity Providers → Add Identity Provider`.
+3. Select `Keycloak` or `Generic OIDC`.
+4. Name: `Keycloak`.
+5. Client ID: value of `NETBIRD_OIDC_CLIENT_ID`.
+6. Client secret: value of `NETBIRD_OIDC_CLIENT_SECRET`.
+7. Issuer URL: `https://<SSO_HOST>/realms/<KEYCLOAK_REALM>`.
+8. Save, log out, and verify the Keycloak login button.
+
+### Claim Mapping
+
+1. Keycloak `sub` becomes the stable external identity.
+2. Keycloak `email`, `name`, and `preferred_username` populate the NetBird user.
+3. Keycloak group membership is emitted as the `groups` claim.
+4. Optional NetBird JWT group sync uses claim name `groups`.
+5. Configure a JWT allow-group before broad user onboarding if only selected Keycloak users should access NetBird.
+
+Do not remove the local owner until Keycloak login, account ownership, and recovery procedures have all been tested. Retaining one protected local owner is recommended.
+
+---
+
 ## Quick Validation Commands
 
 1. Sync configured redirect URIs for stack clients:

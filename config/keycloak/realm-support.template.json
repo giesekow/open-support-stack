@@ -234,6 +234,41 @@
         "https://__PENPOT_HOST__",
         "http://__PENPOT_HOST__"
       ]
+    },
+    {
+      "clientId": "netbird",
+      "name": "NetBird",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__NETBIRD_OIDC_CLIENT_SECRET__",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://__NETBIRD_HOST__/oauth2/callback/*"
+      ],
+      "webOrigins": [
+        "https://__NETBIRD_HOST__"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://__NETBIRD_HOST__/oauth2/logout/callback"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
     }
   ]
 }

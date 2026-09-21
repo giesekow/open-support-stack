@@ -255,7 +255,7 @@ server {
 
 server {
     listen 443 ssl;
-    server_name __MESH_HOST__;
+    server_name __HEADSCALE_ROUTE_HOST__;
     resolver 127.0.0.11 valid=30s;
 
     ssl_certificate __SSL_CERT_PATH__;
@@ -337,6 +337,65 @@ server {
 
         set $upstream_mesh_ui headscale-ui:8080;
         proxy_pass http://$upstream_mesh_ui;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+
+# NetBird combines management, signal, relay, and STUN. STUN bypasses nginx on
+# UDP 3478; HTTP, WebSocket, and native gRPC share this TLS virtual host.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __NETBIRD_HOST__;
+    resolver 127.0.0.11 valid=30s;
+
+    ssl_certificate __SSL_CERT_PATH__;
+    ssl_certificate_key __SSL_KEY_PATH__;
+
+    client_header_timeout 1d;
+    client_body_timeout 1d;
+
+    location ~ ^/(signalexchange\.SignalExchange|management\.(ManagementService|ProxyService))/ {
+        set $upstream_netbird_grpc netbird-server:80;
+        grpc_pass grpc://$upstream_netbird_grpc;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Proto https;
+        grpc_read_timeout 1d;
+        grpc_send_timeout 1d;
+        grpc_socket_keepalive on;
+    }
+
+    location ~ ^/(relay|ws-proxy/) {
+        set $upstream_netbird netbird-server:80;
+        proxy_pass http://$upstream_netbird;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 1d;
+        proxy_send_timeout 1d;
+    }
+
+    location ~ ^/(api|oauth2)/ {
+        set $upstream_netbird netbird-server:80;
+        proxy_pass http://$upstream_netbird;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location / {
+        set $upstream_netbird_dashboard netbird-dashboard:80;
+        proxy_pass http://$upstream_netbird_dashboard;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

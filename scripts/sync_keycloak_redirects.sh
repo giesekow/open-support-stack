@@ -29,6 +29,7 @@ env_get() {
 BASE_DOMAIN="$(env_get BASE_DOMAIN "example.com")"
 SUPPORT_HOST="$(env_get SUPPORT_HOST "support.${BASE_DOMAIN}")"
 MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
+NETBIRD_HOST="$(env_get NETBIRD_HOST "netbird.${BASE_DOMAIN}")"
 DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
@@ -48,6 +49,7 @@ ORANGEHRM_CLIENT_ID="$(env_get ORANGEHRM_OIDC_CLIENT_ID "orangehrm")"
 ERPNEXT_CLIENT_ID="$(env_get ERPNEXT_OIDC_CLIENT_ID "erpnext")"
 SEAFILE_CLIENT_ID="$(env_get SEAFILE_OIDC_CLIENT_ID "seafile")"
 PENPOT_CLIENT_ID="$(env_get PENPOT_OIDC_CLIENT_ID "penpot")"
+NETBIRD_CLIENT_ID="$(env_get NETBIRD_OIDC_CLIENT_ID "netbird")"
 KEYCLOAK_ADMIN_USER="$(env_get KEYCLOAK_ADMIN_USER "")"
 KEYCLOAK_ADMIN_PASSWORD="$(env_get KEYCLOAK_ADMIN_PASSWORD "")"
 
@@ -260,6 +262,58 @@ dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$PENPOT_CLIENT_UU
   -s "webOrigins=[\"https://${PENPOT_HOST}\"]" \
   >/dev/null
 
+NETBIRD_CLIENT_UUID="$(
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$NETBIRD_CLIENT_ID" --fields id --format csv --noquotes \
+    | tr -d '\r' | tail -n 1
+)"
+
+if [[ -z "$NETBIRD_CLIENT_UUID" || "$NETBIRD_CLIENT_UUID" == "id" ]]; then
+  echo "==> Client '$NETBIRD_CLIENT_ID' not found, creating it"
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh create clients -r "$REALM" \
+    -s "clientId=$NETBIRD_CLIENT_ID" \
+    -s "name=NetBird" \
+    -s "enabled=true" \
+    -s "protocol=openid-connect" \
+    -s "publicClient=false" \
+    -s "secret=$(env_get NETBIRD_OIDC_CLIENT_SECRET "replace-with-netbird-oidc-client-secret")" \
+    -s "standardFlowEnabled=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "serviceAccountsEnabled=false" \
+    >/dev/null
+  NETBIRD_CLIENT_UUID="$(
+    dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$NETBIRD_CLIENT_ID" --fields id --format csv --noquotes \
+      | tr -d '\r' | tail -n 1
+  )"
+fi
+
+if [[ -z "$NETBIRD_CLIENT_UUID" || "$NETBIRD_CLIENT_UUID" == "id" ]]; then
+  echo "Failed to create/find client '$NETBIRD_CLIENT_ID' in realm '$REALM'"
+  exit 1
+fi
+
+echo "==> Updating redirect URIs/web origins for client '$NETBIRD_CLIENT_ID'"
+dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$NETBIRD_CLIENT_UUID" -r "$REALM" \
+  -s "secret=$(env_get NETBIRD_OIDC_CLIENT_SECRET "replace-with-netbird-oidc-client-secret")" \
+  -s "redirectUris=[\"https://${NETBIRD_HOST}/oauth2/callback/*\"]" \
+  -s "webOrigins=[\"https://${NETBIRD_HOST}\"]" \
+  -s "attributes.\"post.logout.redirect.uris\"=\"https://${NETBIRD_HOST}/oauth2/logout/callback\"" \
+  >/dev/null
+
+if ! dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get "clients/$NETBIRD_CLIENT_UUID/protocol-mappers/models" -r "$REALM" \
+  --fields name --format csv --noquotes | tr -d '\r' | grep -qx 'groups'; then
+  echo "==> Adding Keycloak groups claim mapper to '$NETBIRD_CLIENT_ID'"
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh create "clients/$NETBIRD_CLIENT_UUID/protocol-mappers/models" -r "$REALM" \
+    -s "name=groups" \
+    -s "protocol=openid-connect" \
+    -s "protocolMapper=oidc-group-membership-mapper" \
+    -s 'config."full.path"="false"' \
+    -s 'config."id.token.claim"="true"' \
+    -s 'config."access.token.claim"="true"' \
+    -s 'config."userinfo.token.claim"="true"' \
+    -s 'config."claim.name"="groups"' \
+    >/dev/null
+fi
+
 echo "Done. Client '$MESHWEB_CLIENT_ID' now allows:"
 echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
 echo "Done. Client '$PORTAL_CLIENT_ID' now allows:"
@@ -283,3 +337,6 @@ echo "Done. Client '$SEAFILE_CLIENT_ID' now allows:"
 echo "  - https://${FILES_HOST}/*"
 echo "Done. Client '$PENPOT_CLIENT_ID' now allows:"
 echo "  - https://${PENPOT_HOST}/api/auth/oidc/callback"
+echo "Done. Client '$NETBIRD_CLIENT_ID' now allows:"
+echo "  - https://${NETBIRD_HOST}/oauth2/callback/*"
+echo "  - post logout redirect: https://${NETBIRD_HOST}/oauth2/logout/callback"
