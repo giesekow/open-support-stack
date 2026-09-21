@@ -124,7 +124,7 @@ docker compose logs -f nginx keycloak
 ./scripts/sync_keycloak_redirects.sh .env
 ```
 
-### NetBird and Headscale transition
+### NetBird
 
 NetBird uses:
 
@@ -155,23 +155,13 @@ The Keycloak client includes a `groups` claim mapper. After SSO works, optionall
 
 Production prerequisites for NetBird:
 
-1. Create an `A` record for `NETBIRD_HOST`, or set `NETBIRD_HOST` equal to the existing `MESH_HOST` to reuse the Headscale hostname. Add `AAAA` only when the host's IPv6 path is fully working.
+1. Create an `A` record for `NETBIRD_HOST`. The default convention is `mesh.<BASE_DOMAIN>`. Add `AAAA` only when the host's IPv6 path is fully working.
 2. Forward TCP `443` to nginx and UDP `3478` directly to the Docker host.
 3. Add `NETBIRD_HOST` to `LETSENCRYPT_DOMAINS`. The certbot service uses `--expand` to add new SANs to the existing certificate.
 4. Back up `netbird-data` and the source environment file containing `NETBIRD_DATASTORE_ENCRYPTION_KEY`; losing that key makes encrypted data unrecoverable. The generated `config/netbird/config.yaml` alone is not a substitute for the protected environment backup.
-5. Keep Headscale running until Windows enrollment, direct peer connectivity, relay fallback, customer subnet routing, DNS, and least-privilege policies have passed acceptance testing.
+5. Validate Windows enrollment, direct peer connectivity, relay fallback, customer subnet routing, DNS, and least-privilege policies before onboarding customer systems.
 
 When nginx runs in HTTP mode behind a separate TLS proxy, set `NETBIRD_SSO_HOST_IP` to that proxy's reachable IP. This container-only mapping lets NetBird perform Keycloak discovery and token exchange while retaining the public HTTPS issuer and certificate hostname.
-
-When `NETBIRD_HOST` equals `MESH_HOST`, nginx assigns that hostname exclusively to NetBird and the portal hides the Headscale cards. Headscale services are behind the opt-in `headscale` Compose profile, so a normal `docker compose up -d` does not restart them. Their configuration and `headscale-data` volume remain available for rollback.
-
-To restore parallel Headscale operation, first give `NETBIRD_HOST` a separate hostname, render the configs, and then start the profile:
-
-```bash
-./scripts/render_netbird_config.sh .env
-./scripts/render_portal_index.sh .env
-docker compose --env-file .env --profile headscale up -d headscale headscale-ui oauth2-proxy-meshweb nginx
-```
 
 Useful checks:
 
@@ -204,9 +194,7 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
    - Login URL via public HTTPS (`https://<SSO_HOST>/.../auth`)
    - Redeem/JWKS via internal Keycloak HTTP (`http://keycloak:8080/...`)
    This prevents callback `500` errors during code exchange.
-7. Keep dedicated OIDC clients:
-   - `MESHWEB_OIDC_CLIENT_ID` for mesh-web auth only.
-   - `SUPPORT_PORTAL_OIDC_CLIENT_ID` for portal auth only (recommended: `support-portal`).
+7. Keep `SUPPORT_PORTAL_OIDC_CLIENT_ID` dedicated to portal authentication (recommended: `support-portal`).
 
 ### Step 2: Preflight checks
 
@@ -220,7 +208,6 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
 
 1. Render generated configs from production env:
 ```bash
-./scripts/render_headscale_config.sh .env.production
 ./scripts/render_netbird_config.sh .env.production
 ./scripts/render_keycloak_realm.sh .env.production
 ./scripts/render_portal_index.sh .env.production
@@ -257,7 +244,7 @@ docker compose --env-file .env.production ps erpnext-db erpnext-frontend erpnext
 ```
 9. Recreate oauth2-proxy services after any OIDC/env changes:
 ```bash
-docker compose --env-file .env.production up -d oauth2-proxy-portal oauth2-proxy-meshweb
+docker compose --env-file .env.production up -d oauth2-proxy-portal
 ```
 10. Apply Seafile trusted-origin/CSRF settings (recommended after first Seafile start or hostname changes):
 ```bash
@@ -288,8 +275,6 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
    - `https://<VAULT_HOST>`
    - `https://<DOCS_HOST>`
    - `https://<REMOTE_HOST>`
-   - `https://<MESH_HOST>`
-   - `https://<MESH_WEB_HOST>`
    - `https://<NETBIRD_HOST>`
    - `https://<TICKETS_HOST>`
    - `https://<CRM_HOST>`
@@ -298,15 +283,6 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
    - `https://<FILES_HOST>`
    - `https://<PENPOT_HOST>`
    - `https://<STATUS_HOST>`
-
-### Headscale UI API URL
-
-When configuring Headscale UI settings in the browser:
-
-1. Use `https://<MESH_WEB_HOST>` as the API URL.
-2. Do not use `https://<MESH_HOST>` for the UI API setting.
-
-Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected by the UI flow.
 
 ### Step 5: Optional env switching workflow
 
@@ -327,19 +303,17 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
    Switch active `.env` between dev/prod presets and restore previous state.
 2. `./scripts/harden_env_production.sh .env.production`
    Generate strong production secrets and harden env defaults.
-3. `./scripts/render_headscale_config.sh <env-file>`
-   Render `config/headscale/config.yaml` from env values.
-4. `./scripts/render_netbird_config.sh <env-file>`
+3. `./scripts/render_netbird_config.sh <env-file>`
    Render secret-bearing `config/netbird/config.yaml` and dashboard environment from the selected environment file.
-5. `./scripts/render_keycloak_realm.sh <env-file>`
+4. `./scripts/render_keycloak_realm.sh <env-file>`
    Render `config/keycloak/realm-support.json` from template/env values.
-6. `./scripts/render_portal_index.sh <env-file>`
+5. `./scripts/render_portal_index.sh <env-file>`
    Render `nginx/html/index.html` portal links from env values and optional additions from `config/portal-links.json` (validated at render time).
 
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for mesh-web, NetBird, portal, guacamole, BookStack, osTicket, EspoCRM, OrangeHRM, ERPNext, Seafile, and Penpot.
+   Sync Keycloak client redirect URIs/web origins for NetBird, portal, Guacamole, BookStack, osTicket, EspoCRM, OrangeHRM, ERPNext, Seafile, and Penpot.
 2. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
 3. `./scripts/install_osticket_oauth2_plugin.sh`
@@ -364,9 +338,6 @@ Reason: `MESH_WEB_HOST` is the nginx + oauth2-proxy protected endpoint expected 
    Post-seed helper for Vaultwarden organization setup.
 4. `./scripts/seed_uptime_kuma_monitors.sh <env-file>`
    Seed Uptime Kuma monitors for stack services.
-5. `./scripts/headscale_api_key.sh <create|list|expire> [options]`
-   Manage Headscale API keys for mesh-web and API access.
-
 ### Production validation
 
 1. `./scripts/preflight_production.sh .env.production`

@@ -3,10 +3,6 @@ set -euo pipefail
 
 docker compose --profile development down
 
-if [[ -x ./scripts/render_headscale_config.sh ]]; then
-  ./scripts/render_headscale_config.sh .env
-fi
-
 if [[ -x ./scripts/render_netbird_config.sh ]]; then
   ./scripts/render_netbird_config.sh .env
 fi

@@ -32,9 +32,7 @@ SSO_HOST="$(env_get SSO_HOST "sso.${BASE_DOMAIN}")"
 VAULT_HOST="$(env_get VAULT_HOST "vault.${BASE_DOMAIN}")"
 DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
-MESH_HOST="$(env_get MESH_HOST "mesh.${BASE_DOMAIN}")"
-MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
-NETBIRD_HOST="$(env_get NETBIRD_HOST "netbird.${BASE_DOMAIN}")"
+NETBIRD_HOST="$(env_get NETBIRD_HOST "mesh.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
 CRM_HOST="$(env_get CRM_HOST "crm.${BASE_DOMAIN}")"
 HR_HOST="$(env_get HR_HOST "hr.${BASE_DOMAIN}")"
@@ -116,8 +114,6 @@ SSO_HOST="$SSO_HOST" \
 VAULT_HOST="$VAULT_HOST" \
 DOCS_HOST="$DOCS_HOST" \
 REMOTE_HOST="$REMOTE_HOST" \
-MESH_HOST="$MESH_HOST" \
-MESH_WEB_HOST="$MESH_WEB_HOST" \
 NETBIRD_HOST="$NETBIRD_HOST" \
 TICKETS_HOST="$TICKETS_HOST" \
 CRM_HOST="$CRM_HOST" \
@@ -144,8 +140,6 @@ const ssoHost = process.env.SSO_HOST;
 const vaultHost = process.env.VAULT_HOST;
 const docsHost = process.env.DOCS_HOST;
 const remoteHost = process.env.REMOTE_HOST;
-const meshHost = process.env.MESH_HOST;
-const meshWebHost = process.env.MESH_WEB_HOST;
 const netbirdHost = process.env.NETBIRD_HOST;
 const ticketsHost = process.env.TICKETS_HOST;
 const crmHost = process.env.CRM_HOST;
@@ -164,13 +158,6 @@ const defaults = [
   { name: "OrangeHRM", url: `https://${hrHost}/` },
   { name: "ERPNext", url: `https://${erpHost}/` },
 ];
-
-if (netbirdHost !== meshHost) {
-  defaults.splice(4, 0,
-    { name: "Headscale API", url: `https://${meshHost}/health` },
-    { name: "Headscale UI", url: `https://${meshWebHost}/` },
-  );
-}
 
 function emitAck(socket, event, ...args) {
   return new Promise((resolve) => {

@@ -68,14 +68,14 @@ Keycloak
 Vaultwarden
 BookStack
 Guacamole
-Headscale
+NetBird
 Purpose of each component
 Component	Purpose
 Keycloak	centralized identity management and MFA
 Vaultwarden	centralized credential/password vault
 BookStack	internal support documentation/wiki
 Guacamole	browser-based remote access gateway
-Headscale	self-hosted mesh VPN control plane
+NetBird	self-hosted mesh VPN control plane
 3. Infrastructure VM Deployment Model
 
 All core infrastructure services will initially run on a single Ubuntu Server 24.04 VM using Docker Compose.
@@ -114,7 +114,7 @@ Recommended storage layout
 ├── bookstack-db/
 ├── bookstack-uploads/
 ├── guacamole-db/
-├── headscale-data/
+├── netbird-data/
 5. Identity and Authentication
 Keycloak will provide:
 centralized authentication
@@ -180,7 +180,7 @@ Support VM
 
 The primary long-term remote connectivity strategy will use:
 
-Headscale + Tailscale clients
+NetBird server and NetBird agents
 
 instead of relying entirely on:
 
@@ -194,11 +194,11 @@ full network access
 RDP/SSH/Web access
 lower operational overhead
 more professional enterprise architecture
-10. Why Headscale Was Chosen Over Self-Hosted ZeroTier
-Headscale/Tailscale chosen because:
+10. Why NetBird Was Chosen Over Self-Hosted ZeroTier
+NetBird chosen because:
 simpler operations
 WireGuard-based
-easier ACL model
+easier access-policy model
 easier debugging
 cleaner integration with modern infrastructure
 easier customer onboarding
@@ -211,28 +211,28 @@ Layer 2 requirements
 legacy network protocols
 unusual medical device scenarios
 
-But Headscale/Tailscale was considered a better operational fit overall.
+But NetBird was considered a better operational fit overall.
 
 11. Customer Connectivity Model
 Recommended customer onboarding flow
 
 Customer installs:
 
-Tailscale client
+NetBird agent
 
 Configured to use:
 
-self-hosted Headscale server
+self-hosted NetBird server
 Example
-tailscale up --login-server https://mesh.company.com
+netbird up --management-url https://mesh.company.com --setup-key <SETUP_KEY>
 12. Customer Isolation Strategy
 
 Customers will NOT share one flat mesh network.
 
 Instead:
-Hospital-A isolated ACLs
-Hospital-B isolated ACLs
-Hospital-C isolated ACLs
+Hospital-A isolated groups and policies
+Hospital-B isolated groups and policies
+Hospital-C isolated groups and policies
 Benefits
 security isolation
 compliance posture
@@ -246,7 +246,7 @@ Guacamole
       ↓
 Dedicated Support VM
       ↓
-Headscale/Tailscale
+NetBird
       ↓
 Customer Environment
 14. Traditional VPN Still Supported
@@ -276,7 +276,7 @@ Currently forwarding:
 
 OpenVPN port 1194
 16. Public Exposure Strategy
-Only Headscale will be publicly exposed
+Only NetBird will be publicly exposed
 
 Everything else remains:
 
@@ -293,7 +293,7 @@ Keycloak admin
 Support VMs
 17. Recommended Public Routing
 Cloud VPS
-443/TCP → Headscale
+443/TCP → NetBird
 1194 → pfSense OpenVPN
 Through FRP tunnel
 Public VPS
@@ -305,7 +305,7 @@ frpc
 Office Infrastructure
 18. Why Port 443 Was Chosen
 
-Headscale can technically use any TCP port.
+NetBird can technically use any TCP port.
 
 However:
 
@@ -315,7 +315,7 @@ custom ports frequently fail
 
 Therefore:
 
-Headscale should use HTTPS on 443
+NetBird should use HTTPS on 443
 19. Recommended DNS Layout
 Public
 mesh.company.com
@@ -342,7 +342,7 @@ no shared engineer accounts
 Cloud VPS (Public)
 ────────────────────────────
 ├── frps
-├── 443 → Headscale
+├── 443 → NetBird
 └── 1194 → pfSense VPN
 
             ↓
@@ -358,7 +358,7 @@ Office Network / ESXi
 │    ├── Vaultwarden
 │    ├── BookStack
 │    ├── Guacamole
-│    └── Headscale
+│    └── NetBird
 │
 ├── Support-VM-Alice
 ├── Support-VM-Bob

@@ -86,24 +86,6 @@
       ]
     },
     {
-      "clientId": "mesh-web-ui",
-      "name": "Headscale UI OAuth2 Proxy",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": false,
-      "secret": "__MESHWEB_OIDC_CLIENT_SECRET__",
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "redirectUris": [
-        "https://__MESH_WEB_HOST__/oauth2/callback",
-        "https://__SUPPORT_HOST__/oauth2/callback"
-      ],
-      "webOrigins": [
-        "https://__MESH_WEB_HOST__"
-      ]
-    },
-    {
       "clientId": "support-portal",
       "name": "Support Portal OAuth2 Proxy",
       "enabled": true,

@@ -251,7 +251,7 @@ This keeps browser authentication on public HTTPS while avoiding reverse-proxy T
 
 ## NetBird
 
-NetBird is deployed in parallel with Headscale during evaluation. Its embedded local identity provider remains enabled for a break-glass owner, while Keycloak is added as an external connector.
+NetBird uses its embedded local identity provider for a break-glass owner, while Keycloak is configured as the primary external identity provider.
 
 ### Keycloak Client
 

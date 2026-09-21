@@ -16,7 +16,6 @@ Thumbs.db
 !.env.example
 
 # Generated config artifacts (rendered from templates/scripts)
-config/headscale/config.yaml
 config/netbird/config.yaml
 config/netbird/dashboard.env
 config/keycloak/realm-support.json

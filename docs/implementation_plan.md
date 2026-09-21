@@ -7,7 +7,7 @@ Implement a secure, auditable, and scalable remote support platform for regulate
 
 - Dedicated support VM per engineer
 - Shared infrastructure VM for identity, vault, docs, remote gateway, and mesh control plane
-- Headscale/Tailscale for modern customer connectivity
+- NetBird for modern customer connectivity
 - Compatibility with traditional VPN and jump-host patterns
 
 ### 1.2 In-Scope Components
@@ -19,7 +19,7 @@ Implement a secure, auditable, and scalable remote support platform for regulate
   - Vaultwarden
   - BookStack
   - Guacamole
-  - Headscale
+  - NetBird
 - Engineer support VMs (Windows 11 Pro preferred)
 - DNS and certificate model
 - Backup, restore, audit logging, and operational runbooks
@@ -35,12 +35,12 @@ Implement a secure, auditable, and scalable remote support platform for regulate
 
 - 100% support engineers use dedicated support VMs
 - All internal support services accessible only via VPN/internal routes
-- Headscale publicly reachable on 443/TCP only
+- NetBird publicly reachable on 443/TCP only
 - Centralized identity and MFA enforced for all admins and engineers
 - Passwords/secrets stored in Vaultwarden, not documentation tools
 - Successful restore test from backup within RTO target
 - Pilot customer support flow works end-to-end:
-  - Browser -> Guacamole -> Support VM -> Headscale -> Customer resource
+  - Browser -> Guacamole -> Support VM -> NetBird -> Customer resource
 
 ---
 
@@ -50,7 +50,7 @@ Implement a secure, auditable, and scalable remote support platform for regulate
 
 - Public VPS:
   - `frps`
-  - Public 443 -> Headscale (via FRP to office)
+  - Public 443 -> NetBird (via FRP to office)
   - Public 1194 -> pfSense OpenVPN (via FRP)
 - Office/ESXi:
   - `pfSense` VM
@@ -61,7 +61,7 @@ Implement a secure, auditable, and scalable remote support platform for regulate
 ### 2.2 Exposure Policy
 
 Publicly exposed:
-- `mesh.company.com` (Headscale over HTTPS/443)
+- `mesh.company.com` (NetBird over HTTPS/443)
 
 Internal-only (VPN/office/internal DNS):
 - `vault.company.internal`
@@ -77,7 +77,7 @@ Internal-only (VPN/office/internal DNS):
 - Boundary B: Public VPS <-> FRP tunnel <-> Office
 - Boundary C: Office network <-> Infrastructure VM services
 - Boundary D: Engineer identity/session <-> Guacamole session
-- Boundary E: Support VM <-> Customer networks (Headscale or legacy VPN)
+- Boundary E: Support VM <-> Customer networks (NetBird or legacy VPN)
 
 ---
 
@@ -92,7 +92,7 @@ Internal-only (VPN/office/internal DNS):
 - Assign owners for platform, networking, identity, and operations
 - Define environment naming conventions and inventory format
 - Finalize domain names and DNS zones
-- Confirm certificate issuance approach (public CA for Headscale, internal CA/private PKI for internal services)
+- Confirm certificate issuance approach (public CA for NetBird, internal CA/private PKI for internal services)
 - Define RTO/RPO targets (example: RTO 4h, RPO 24h)
 - Create project tracker with milestones and change log
 
@@ -136,12 +136,12 @@ Internal-only (VPN/office/internal DNS):
 ## Phase 2 - Public Access Path (Week 3)
 
 ### Goals
-- Provide secure minimal public ingress for Headscale and OpenVPN forwarding
+- Provide secure minimal public ingress for NetBird and OpenVPN forwarding
 
 ### Tasks
 - Validate existing VPS + FRP chain capacity and reliability
 - Configure FRP mappings:
-  - 443/TCP -> Headscale service endpoint
+  - 443/TCP -> NetBird service endpoint
   - 1194/UDP(or TCP as configured) -> pfSense OpenVPN
 - Apply VPS firewall policy:
   - Allow only required ports
@@ -171,13 +171,13 @@ Internal-only (VPN/office/internal DNS):
   - bookstack-db
   - bookstack-uploads
   - guacamole-db
-  - headscale-data
+  - netbird-data
 - Deploy and validate each service:
   - Keycloak
   - Vaultwarden
   - BookStack
   - Guacamole
-  - Headscale
+  - NetBird
 - Place all services behind internal reverse proxy if used
 - Enforce TLS for all service access paths
 - Add secure secrets handling for Compose environment values
@@ -246,22 +246,22 @@ Internal-only (VPN/office/internal DNS):
 - Establish modern mesh-first connectivity with safe isolation
 
 ### Tasks
-- Configure Headscale namespaces/users/tags strategy
-- Define ACL policy for strict customer isolation:
+- Configure NetBird users, groups, setup keys, and routing peers
+- Define access policies for strict customer isolation:
   - No lateral access between customers
   - Engineer access scoped to assigned cases/customers
 - Pilot with one internal test customer lab
-- Pilot with 1-2 real customers that accept Tailscale client deployment
+- Pilot with 1-2 real customers that accept NetBird agent deployment
 - Keep traditional VPN paths available for constrained hospitals:
   - OpenVPN/IPsec/site-to-site/jump-host fallback
 - Document customer onboarding workflow:
   - Prerequisites
-  - Tailscale install steps
-  - `tailscale up --login-server https://mesh.company.com`
+  - NetBird agent installation steps
+  - `netbird up --management-url https://mesh.company.com --setup-key <SETUP_KEY>`
   - Validation checks
 
 ### Deliverables
-- Approved ACL baseline with customer isolation proof
+- Approved access-policy baseline with customer isolation proof
 - Pilot results and lessons learned
 - Standard customer onboarding pack
 
@@ -276,7 +276,7 @@ Internal-only (VPN/office/internal DNS):
 - Enable and centralize logs (at minimum export + retention strategy):
   - Keycloak auth events
   - Guacamole session/auth events
-  - Headscale access events
+  - NetBird access events
   - Host and container logs
 - Decide and configure session recording policy for Guacamole where legally/contractually allowed
 - Define retention and access policy for logs and recordings
@@ -445,7 +445,7 @@ Internal-only (VPN/office/internal DNS):
 - Guacamole RDP and SSH session test
 - Vaultwarden access and vault permissions test
 - BookStack role-based access test
-- Headscale node enrollment and connectivity test
+- NetBird node enrollment and connectivity test
 
 ### 7.2 Security Tests
 - External surface scan (only expected ports/services visible)
@@ -495,7 +495,7 @@ Internal-only (VPN/office/internal DNS):
 - Hardened infrastructure VM with Compose stack
 - Identity model + MFA + SSO working
 - Dedicated support VMs provisioned
-- Headscale ACL policy with customer isolation proof
+- NetBird access policy with customer isolation proof
 - Operational runbooks (onboarding/offboarding/incident/change)
 - Backup + restore evidence and RTO/RPO report
 - Go-live signoff and hypercare report
@@ -507,6 +507,5 @@ Internal-only (VPN/office/internal DNS):
 1. Create repository structure for `support-stack` (compose, env templates, docs, runbooks).
 2. Draft initial `docker-compose.yml` with pinned versions and persistent volumes.
 3. Draft Keycloak realm/role design and mapping to Guacamole/BookStack/Vaultwarden.
-4. Draft Headscale ACL policy skeleton for customer isolation.
+4. Draft NetBird access-policy skeleton for customer isolation.
 5. Build a pilot checklist for one engineer + one test customer.
-

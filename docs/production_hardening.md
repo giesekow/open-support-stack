@@ -70,7 +70,7 @@ docker compose --env-file .env.production logs --tail=120 nginx certbot
 - Backups:
   - Postgres volumes (`keycloak-db-data`, `guacamole-db-data`)
   - MariaDB volumes (`bookstack-db-data`, `osticket-db-data`, `espocrm-db-data`)
-  - App data volumes (`vaultwarden-data`, `bookstack-data`, `espocrm-data`, `headscale-data`, `uptime-kuma-data`, `letsencrypt-data`)
+  - App data volumes (`vaultwarden-data`, `bookstack-data`, `espocrm-data`, `netbird-data`, `uptime-kuma-data`, `letsencrypt-data`)
 - Update strategy:
   - Pin explicit image tags where possible.
   - Upgrade in staging before production.

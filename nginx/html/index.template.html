@@ -277,21 +277,10 @@
     <section class="grid" aria-label="Identity and mesh links" data-section="Identity & Mesh">
       <a class="card" href="#" data-service="netbird" target="_blank" rel="noopener noreferrer">
         <div class="card-head"><span class="icon">NB</span><p class="name">NetBird</p></div>
-        <p class="desc">NetBird mesh VPN evaluation dashboard and control plane.</p>
+        <p class="desc">NetBird secure mesh network dashboard and control plane.</p>
         <p class="url" data-url="netbird">netbird.example.com</p>
       </a>
 
-      <a class="card" href="#" data-service="mesh-web" data-headscale-only target="_blank" rel="noopener noreferrer">
-        <div class="card-head"><span class="icon">MUI</span><p class="name">Mesh UI</p></div>
-        <p class="desc">Headscale web interface behind OAuth2 proxy.</p>
-        <p class="url" data-url="mesh-web">mesh-web.example.com</p>
-      </a>
-
-      <a class="card" href="#" data-service="mesh" data-headscale-only target="_blank" rel="noopener noreferrer">
-        <div class="card-head"><span class="icon">API</span><p class="name">Headscale API</p></div>
-        <p class="desc">Headscale control plane endpoint.</p>
-        <p class="url" data-url="mesh">mesh.example.com</p>
-      </a>
 
       <a class="card" href="#" data-service="sso" target="_blank" rel="noopener noreferrer">
         <div class="card-head"><span class="icon">SSO</span><p class="name">SSO</p></div>
@@ -312,8 +301,6 @@
         vault: "__VAULT_HOST__",
         docs: "__DOCS_HOST__",
         remote: "__REMOTE_HOST__",
-        mesh: "__MESH_HOST__",
-        "mesh-web": "__MESH_WEB_HOST__",
         netbird: "__NETBIRD_HOST__",
         tickets: "__TICKETS_HOST__",
         crm: "__CRM_HOST__",
@@ -324,12 +311,6 @@
         status: "__STATUS_HOST__"
       };
       var extraLinksB64 = "__PORTAL_EXTRA_LINKS_B64__";
-
-      if (hosts.netbird === hosts.mesh) {
-        document.querySelectorAll("[data-headscale-only]").forEach(function (el) {
-          el.remove();
-        });
-      }
 
       var postLogoutRedirect = window.location.origin + "/";
       var keycloakLogout = "https://" + hosts.sso + "/realms/" + encodeURIComponent(keycloakRealm)

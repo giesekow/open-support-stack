@@ -28,8 +28,7 @@ env_get() {
 
 BASE_DOMAIN="$(env_get BASE_DOMAIN "example.com")"
 SUPPORT_HOST="$(env_get SUPPORT_HOST "support.${BASE_DOMAIN}")"
-MESH_WEB_HOST="$(env_get MESH_WEB_HOST "mesh-web.${BASE_DOMAIN}")"
-NETBIRD_HOST="$(env_get NETBIRD_HOST "netbird.${BASE_DOMAIN}")"
+NETBIRD_HOST="$(env_get NETBIRD_HOST "mesh.${BASE_DOMAIN}")"
 DOCS_HOST="$(env_get DOCS_HOST "docs.${BASE_DOMAIN}")"
 REMOTE_HOST="$(env_get REMOTE_HOST "remote.${BASE_DOMAIN}")"
 TICKETS_HOST="$(env_get TICKETS_HOST "tickets.${BASE_DOMAIN}")"
@@ -39,7 +38,6 @@ ERP_HOST="$(env_get ERP_HOST "erp.${BASE_DOMAIN}")"
 FILES_HOST="$(env_get FILES_HOST "files.${BASE_DOMAIN}")"
 PENPOT_HOST="$(env_get PENPOT_HOST "penpot.${BASE_DOMAIN}")"
 REALM="$(env_get KEYCLOAK_REALM "support")"
-MESHWEB_CLIENT_ID="$(env_get MESHWEB_OIDC_CLIENT_ID "mesh-web-ui")"
 PORTAL_CLIENT_ID="$(env_get SUPPORT_PORTAL_OIDC_CLIENT_ID "support-portal")"
 GUAC_CLIENT_ID="$(env_get GUACAMOLE_OPENID_CLIENT_ID "guacamole")"
 BOOKSTACK_CLIENT_ID="$(env_get BOOKSTACK_OIDC_CLIENT_ID "bookstack")"
@@ -64,22 +62,6 @@ dc exec -T keycloak /opt/keycloak/bin/kcadm.sh config credentials \
   --realm master \
   --user "$KEYCLOAK_ADMIN_USER" \
   --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null
-
-MESHWEB_CLIENT_UUID="$(
-  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$MESHWEB_CLIENT_ID" --fields id --format csv --noquotes \
-    | tr -d '\r' | tail -n 1
-)"
-
-if [[ -z "$MESHWEB_CLIENT_UUID" || "$MESHWEB_CLIENT_UUID" == "id" ]]; then
-  echo "Client '$MESHWEB_CLIENT_ID' not found in realm '$REALM'"
-  exit 1
-fi
-
-echo "==> Updating redirect URIs/web origins for client '$MESHWEB_CLIENT_ID'"
-dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/$MESHWEB_CLIENT_UUID" -r "$REALM" \
-  -s "redirectUris=[\"https://${MESH_WEB_HOST}/oauth2/callback\"]" \
-  -s "webOrigins=[\"https://${MESH_WEB_HOST}\"]" \
-  >/dev/null
 
 PORTAL_CLIENT_UUID="$(
   dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "$REALM" -q clientId="$PORTAL_CLIENT_ID" --fields id --format csv --noquotes \
@@ -314,8 +296,6 @@ if ! dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get "clients/$NETBIRD_CLIENT
     >/dev/null
 fi
 
-echo "Done. Client '$MESHWEB_CLIENT_ID' now allows:"
-echo "  - https://${MESH_WEB_HOST}/oauth2/callback"
 echo "Done. Client '$PORTAL_CLIENT_ID' now allows:"
 echo "  - https://${SUPPORT_HOST}/oauth2/callback"
 echo "  - post logout redirect: https://${SUPPORT_HOST}/"
