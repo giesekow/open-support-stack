@@ -327,13 +327,72 @@ services:
     networks:
       - backend
 
+  support-tools-db:
+    image: postgres:17-alpine
+    container_name: support-support-tools-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SUPPORT_TOOLS_DB_NAME}
+      POSTGRES_USER: ${SUPPORT_TOOLS_DB_USER}
+      POSTGRES_PASSWORD: ${SUPPORT_TOOLS_DB_PASSWORD}
+    volumes:
+      - support-tools-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUPPORT_TOOLS_DB_USER} -d ${SUPPORT_TOOLS_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+  support-tools:
+    build:
+      context: ./services/support-tools
+    container_name: support-support-tools
+    restart: unless-stopped
+    depends_on:
+      support-tools-db:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      DATABASE_URL: postgresql+psycopg://${SUPPORT_TOOLS_DB_USER}:${SUPPORT_TOOLS_DB_PASSWORD}@support-tools-db:5432/${SUPPORT_TOOLS_DB_NAME}
+      SUPPORT_TOOLS_SESSION_SECRET: ${SUPPORT_TOOLS_SESSION_SECRET}
+      SUPPORT_TOOLS_COOKIE_SECURE: ${SUPPORT_TOOLS_COOKIE_SECURE:-true}
+      SUPPORT_TOOLS_DEV_AUTH_BYPASS: ${SUPPORT_TOOLS_DEV_AUTH_BYPASS:-false}
+      SUPPORT_TOOLS_DEV_USER_EMAIL: ${SUPPORT_TOOLS_DEV_USER_EMAIL:-developer@example.com}
+      SUPPORT_TOOLS_DEV_USER_NAME: ${SUPPORT_TOOLS_DEV_USER_NAME:-Local developer}
+      SUPPORT_TOOLS_RUNTIME_DIR: /runtime
+      SUPPORT_TOOLS_SEED_DIR: /seed
+      ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT: ${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT:-${ORANGEHRM_ADMIN_EMAIL}}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    volumes:
+      - ./config/orangehrm/leave-notifications.json:/seed/leave-notifications.json:ro
+      - ./config/orangehrm/email-templates:/seed/templates:ro
+      - support-tools-runtime:/runtime
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/automations/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - backend
+
   orangehrm-leave-notifier:
     build:
       context: ./services/orangehrm-leave-notifier
     container_name: support-orangehrm-leave-notifier
     restart: unless-stopped
     depends_on:
-      - orangehrm-db
+      orangehrm-db:
+        condition: service_started
+      support-tools:
+        condition: service_healthy
     environment:
       TZ: ${TZ:-Europe/Berlin}
       ORANGEHRM_DB_HOST: orangehrm-db
@@ -349,10 +408,10 @@ services:
       ORANGEHRM_LEAVE_NOTIFIER_SMTP_USERNAME: ${SMTP_USER:-}
       ORANGEHRM_LEAVE_NOTIFIER_SMTP_PASSWORD: ${SMTP_PASS:-}
       ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS: ${ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS:-60}
-      ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR: /config/templates
+      ORANGEHRM_LEAVE_NOTIFIER_CONFIG: /runtime/leave-notifications.json
+      ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR: /runtime/templates
     volumes:
-      - ./config/orangehrm/leave-notifications.json:/config/leave-notifications.json:ro
-      - ./config/orangehrm/email-templates:/config/templates:ro
+      - support-tools-runtime:/runtime:ro
       - orangehrm-leave-notifier-data:/data
     networks:
       - backend
@@ -765,6 +824,7 @@ services:
       - osticket
       - espocrm
       - orangehrm
+      - support-tools
       - erpnext-frontend
       - seafile
       - penpot-frontend
@@ -964,6 +1024,8 @@ volumes:
   orangehrm-db-data:
   orangehrm-data:
   orangehrm-leave-notifier-data:
+  support-tools-db-data:
+  support-tools-runtime:
   erpnext-db-data:
   erpnext-sites:
   seafile-db-data:

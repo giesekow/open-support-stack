@@ -1,0 +1,12 @@
+2026-09-23 12:10:34.088 INFO - GET /wiki/rest/api/user/712020:045745b4-e14e-42bd-bc74-b2e94016739e/property/johnermedconfig asJson Request Duration: 638ms
+2026-09-23 12:10:34.092 WARN - GET request to /wiki/rest/api/user/712020:045745b4-e14e-42bd-bc74-b2e94016739e/property/johnermedconfig returned an error code: status: 403 - Forbidden
+body: {"statusCode":403,"data":{"authorized":false,"valid":false,"errors":[{"message":{"translation":"Impersonated User cannot access another user's properties","args":[]}}],"successful":false},"message":"com.atlassian.confluence.api.service.exceptions.api.PermissionException: Impersonated User cannot access another user's properties"}
+2026-09-23 12:10:34.185 ERROR - Assertion failed: 
+
+assert dataResponse.status == 200
+       |            |      |
+       |            403    false
+       status: 403 - Forbidden
+       body: {"statusCode":403,"data":{"authorized":false,"valid":false,"errors":[{"message":{"translation":"Impersonated User cannot access another user's properties","args":[]}}],"successful":false},"message":"com.atlassian.confluence.api.service.exceptions.api.PermissionException: Impersonated User cannot access another user's properties"}
+
+2026-09-23 12:10:34.185 ERROR - Class: com.adaptavist.sr.cloud.events.ScheduledScriptExecution, Config: null

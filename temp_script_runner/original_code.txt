@@ -1,0 +1,664 @@
+package jm.confluence.documents.training
+
+   // Script name: CreateDocumentTrainingTasks.groovy
+   // Script built date: May 15 2025
+   // Script built time: 08:25:22
+   // Git commit: 5c2f67663725994e0ff1c2f5b1c1311155f9dcc6
+   // Script version: 1.2.4
+   // Logging via Google: false
+
+/*
+ // === SERVER SERVER SERVER SERVER
+ @Grapes(
+ @Grab(group='com.mashape.unirest', module='unirest-java', version='1.4.9')
+ // this doesn't work: @Grab(group='com.konqhq', module='unirest-java', version='3.13.0')
+ )
+ import com.mashape.unirest.http.Unirest
+ import com.mashape.unirest.request.GetRequest
+ import com.mashape.unirest.request.HttpRequestWithBody
+ import com.mashape.unirest.http.HttpResponse
+ import org.apache.log4j.Level
+ server = true
+ accountField = "name"
+ evaluate(new File("/var/atlassian/application-data/confluence/scripts/ScriptVariables.groovy"))
+ log.setLevel(Level.INFO)
+ COMALAPROPKEY = 'comalaworkflows'
+ COMALASTATEFIELD = 'state'
+ // === SERVER SERVER SERVER SERVER
+ */
+
+
+// === CLOUD CLOUD CLOUD CLOUD
+import io.github.openunirest.request.GetRequest
+import io.github.openunirest.request.HttpRequestWithBody
+server = false
+accountField = "accountId"
+COMALAPROPKEY = 'cw-status'
+COMALASTATEFIELD = 'cw_state'
+jmconfig = new JohnerMedConfig(logger, this).getJohnerMedConfig()
+jmlog = new GCPLogger("CreateDocumentTrainingTasks.groovy", jmconfig, this)
+
+class JohnerMedConfig {
+    String configkey = 'johnermedconfig'
+    def localLogger
+    Map johnermedconfig
+    def hostScript
+
+    JohnerMedConfig(localLogger, hostScript) {
+        this.localLogger = localLogger
+        this.hostScript = hostScript
+    }
+
+    def getJohnerMedConfig() {
+        if (!johnermedconfig) {
+            HttpResponse dataResponse = hostScript.getConfluence("/rest/api/user/${this.hostScript.CONFIGUSER}/property/${configkey}").asJson()
+            assert dataResponse.status == 200
+            assert dataResponse.body.object.value != null
+
+            johnermedconfig = dataResponse.body.object.value.toMap()
+        }
+        return johnermedconfig
+    }
+
+    def setJohnerMedConfig(Map value) {
+        Map johnermedconfig = [
+            key: configkey,
+            value: value
+        ]
+
+        // delete in any case; result is irrelevant because the entry gets re-created in the next step
+        hostScript.deleteConfluence("/rest/api/user/${this.hostScript.CONFIGUSER}/property/${configkey}").asJson()
+
+        HttpResponse createResponse = hostScript.postConfluence("/rest/api/user/${this.hostScript.CONFIGUSER}/property/${configkey}")
+                .header('Content-Type', 'application/json')
+                .header('Accept', 'application/json')
+                .body(groovy.json.JsonOutput.toJson(johnermedconfig))
+                .asJson()
+        localLogger.debug("createResponse status: " + createResponse.status)
+        localLogger.debug("createResponse body: " + createResponse.body)
+        assert createResponse.status == 201
+
+        localLogger.info("written data: " + getJohnerMedConfig())
+    }
+}
+
+
+import io.github.openunirest.request.GetRequest
+import io.github.openunirest.request.HttpRequestWithBody
+
+// === abstraction layer for server/cloud
+GetRequest getConfluence(String url) {
+    return get(CONFLUENCERESTURL + url)
+}
+
+HttpRequestWithBody postConfluence(String url) {
+    return post(CONFLUENCERESTURL + url)
+}
+
+HttpRequestWithBody putConfluence(String url) {
+    return put(CONFLUENCERESTURL + url)
+}
+
+HttpRequestWithBody deleteConfluence(String url) {
+    return delete(CONFLUENCERESTURL + url)
+}
+
+GetRequest getJira(String url) {
+    return get(JIRARESTURL + url).basicAuth(jmconfig.clouduser, jmconfig.cloudapikey)
+}
+
+HttpRequestWithBody postJira(String url) {
+    return post(JIRARESTURL + url).basicAuth(jmconfig.clouduser, jmconfig.cloudapikey)
+}
+
+HttpRequestWithBody putJira(String url) {
+    return put(JIRARESTURL + url).basicAuth(jmconfig.clouduser, jmconfig.cloudapikey)
+}
+// Non-Cloud logging
+class GCPLogger {
+    String logName
+    Map johnermedconfig
+    org.slf4j.Logger logger
+
+    GCPLogger(String logName, Map johnermedconfig, hostScript) {
+        this.logName = logName
+        this.johnermedconfig = johnermedconfig
+        this.logger = hostScript.logger
+    }
+
+    void debug(message) {
+        // calling "debug" for local logging just disappears
+        // instead, send it via "info"
+        // but keep it inactive by default because "Response payload size exceeded maximum allowed payload size (6291556 bytes)"
+        // logger.info(message.toString())
+    }
+
+    void info(message) {
+        logger.info(message.toString())
+    }
+
+    void notice(message) {
+        logger.info(message.toString())
+    }
+
+    void warning(message) {
+        logger.warn(message.toString())
+    }
+
+    void error(message) {
+        logger.error(message.toString())
+    }
+
+    void critical(message) {
+        logger.error(message.toString())
+    }
+
+    void alert(message) {
+        logger.error(message.toString())
+    }
+    void emergency(message) {
+        logger.error(message.toString())
+    }
+}
+
+    
+jmlog.info("Start")
+// === CLOUD CLOUD CLOUD CLOUD
+
+
+
+spaces = binding.hasVariable('CONFLUENCESPACES') ? CONFLUENCESPACES.split('\\s|,|;')?.findAll { it } : []
+CONFSPACESCQLPREFIX = spaces.isEmpty() ? '' : "space in (${spaces.collect { "\"$it\"" }?.join(',')}) AND "
+
+if (binding.hasVariable('event')) {
+    if (!spaces.isEmpty() && !spaces.contains(page['spaceKey'])) {
+        jmlog.info('Aborting because page is not within configured spaces')
+        return
+    }
+}
+
+
+jmlog.debug("JIRARESTURL ${JIRARESTURL}, Jira account ${jmconfig.clouduser}")
+
+jsonSlurper = new groovy.json.JsonSlurper()
+
+HttpResponse taskTypeResponse = getJira('/rest/api/latest/issuetype').asJson()
+if (taskTypeResponse.status != 200) {
+    jmlog.alert(taskTypeResponse.toString())
+}
+assert taskTypeResponse.status == 200
+
+taskTypeJson = jsonSlurper.parseText(taskTypeResponse.body.toString())
+taskType = taskTypeJson.find { taskType -> taskType['name'] == JIRAISSUETYPE }['id']
+
+/**
+ * 1. Fetch users from roles page; only those are relevant. Build internal map of users with their roles.
+ * 2. Fetch pages with label 'document'. For each document, read its roles from the content properties.
+ *    For each document role, "resolve" its members. Build internal map of users with their documents.
+ *    This represents the target state.
+ * 3. Fetch Jira training issues. Per user and document, i. e. Jira issue:
+ *      a. If exists, check document version. If already trained, leave it. Finish.
+ *      b. If exists and document version is old, update and create training subtask.
+ *      c. If it doesn't exist, create it and b.
+ *      d. If Jira provides issues without a matching document in confluence, set it to obsolete and finish.
+ */
+
+// =====================================
+// 1.
+
+// fetch all "roles" pages with their johnermedroles content properties
+boolean done = false
+Map docRoles = [:]
+Set availableRoles = []
+Map statusCache = [:]
+
+HttpResponse rolesPagesResponse = getConfluence('/rest/api/content/search')
+        .queryString('cql', "${CONFSPACESCQLPREFIX}label='${CONFROLESLABEL}'")
+        .queryString('expand', 'metadata.properties.johnermedroles')
+        .queryString('limit', '2147483646')
+        .asJson()
+
+while (!done) {
+    if (rolesPagesResponse.status != 200) {
+        jmlog.alert(rolesPagesResponse.body.object.toMap())
+    }
+    assert rolesPagesResponse.status == 200
+    Map rolesPages = rolesPagesResponse.body.object.toMap()
+    rolesPages.results.each { result ->
+        johnermedroles = result.metadata.properties.johnermedroles
+        if (johnermedroles) {
+            jmlog.debug([johnermedroles: johnermedroles])
+            johnermedroles.value.each { roleName, accountIds ->
+                if (!(roleName in availableRoles)) {
+                    availableRoles.add(roleName)
+                }
+                handleAccountsRoles(roleName, accountIds, docRoles)
+            }
+        }
+    }
+
+    if (rolesPages._links.next) {
+        rolesPagesResponse = getConfluence(rolesPages._links.next).asJson()
+        } else {
+        done = true
+    }
+}
+
+void handleAccountsRoles(String roleName, List accountIds, Map docRoles) {
+    accountIds.each { accountId ->
+        if (!(accountId in docRoles)) {
+            docRoles[accountId] = [
+                accountId:  accountId,
+                username:  accountId,
+                roles:    [] as Set,
+                docs:    [:],
+            ]
+
+            if (server) {
+                // for server: fetch username for accountId
+                HttpResponse userResponse = getConfluence('/rest/api/user')
+                                .queryString('key', accountId)
+                                .asJson()
+                if (userResponse.status != 200) {
+                    jmlog.alert(userResponse.body.object.toMap())
+                }
+                assert userResponse.status == 200
+                Map userjson = userResponse.body.object.toMap()
+                docRoles[accountId].username = userjson.username
+            }
+        }
+        jmlog.debug("adding role ${roleName} to ${docRoles[accountId].roles} for account ${accountId}")
+        docRoles[accountId].roles.add(roleName)
+    }
+}
+
+jmlog.info([docRoles: docRoles, availableRoles: availableRoles])
+
+// =====================================
+// 2.a. (enhance roleMap with data from Roles-Pages-Matrices)
+Map rolesPagesMatrix = getRolesPagesMatrix(availableRoles)
+
+// =====================================
+// 2.b. (built in roleMap)
+HttpResponse rawdocumentsResponse = getConfluence('/rest/api/content/search')
+        .queryString('cql', "${CONFSPACESCQLPREFIX}label='${CONFDOCUMENTLABEL}'")
+        .queryString('expand', "metadata.properties.johnermed,metadata.properties.${COMALAPROPKEY},ancestors,version")
+        .queryString('limit', '2147483646')
+        .asJson()
+
+done = false
+while (!done) {
+    Map rawdocuments = rawdocumentsResponse.body.object.toMap()
+    if (rawdocumentsResponse.status != 200) {
+        jmlog.alert(rawdocuments)
+    }
+    assert rawdocumentsResponse.status == 200
+    handleDocuments(rawdocuments, docRoles, availableRoles, rolesPagesMatrix)
+
+    if (rawdocuments._links.next) {
+        rawdocumentsResponse = getConfluence(rawdocuments._links.next).asJson()
+    } else {
+        done = true
+    }
+}
+
+jmlog.debug([docRoles_before_filtering: docRoles])
+docRoles = docRoles.findAll { docRole -> docRole.value.docs.size() > 0 }
+jmlog.debug([docRoles_filtered_target_state: docRoles])
+
+/* =====================================
+ * 3. handle JIRA issues
+ * 3a. Create or activate all issues according to docRoles
+ * 3b. Obsolete all other if they are not already taken/processed ('Wirksam', 'Obsolet')
+ */
+String trainingjql = "project = '${JIRAPROJECTKEY}' AND type = '${JIRAISSUETYPE}'"
+
+// handle result pagination of Jira search
+done = false
+int i = 0
+nextPageToken = null
+while (!done) {
+    String searchbody = new groovy.json.JsonBuilder([
+        jql: trainingjql,
+        expand: 'transitions',
+        'fields': [
+            'status',
+            'assignee',
+            "customfield_${JIRAPAGEIDFIELD}",
+            "customfield_${JIRAPAGEVERSIONFIELD}",
+        ],
+        maxResults: 5000,
+        nextPageToken: nextPageToken
+    ])
+    jmlog.debug([searchbody: searchbody])
+
+    HttpResponse issueresultResponse = postJira('/rest/api/3/search/jql')
+            .header('Content-Type', 'application/json')
+            .body(searchbody)
+            .asJson()
+    Map issueresult = issueresultResponse.body.object.toMap()
+    if (issueresultResponse.status != 200) {
+        jmlog.alert(issueresult)
+    }
+    assert issueresultResponse.status == 200
+
+    jmlog.debug("Processing issues starting at ${i}: ${issueresult.issues*.key}")
+
+    // handle matching issues: set status 'active', check for document version and create sub-task if necessary
+    issueresult.issues.each { issue ->
+        // is there a matching user-role?
+        Map account = docRoles.find { docRole ->
+            docRole.value.username == issue.fields.assignee?."${accountField}" }?.value
+
+        if (!account) {
+            // For the assignee of this issue, there is no associated entry in roleMap
+            jmlog.info("No one is responsible for Jira issue ${issue.key}; obsoleting")
+            transitionIssue(issue, JIRASTATUSOBSOLETE, JIRACOMMENTOBSOLETE, statusCache)
+            return
+        }
+
+        if (!account.docs.containsKey(issue.fields."customfield_${JIRAPAGEIDFIELD}")) {
+            // this user is not assigned to/responsible for this document
+            String statusId = issue.fields.status.id
+            String issueStatusBaseName = statusCache.computeIfAbsent(statusId) { id -> getJiraStatusName(id) }
+
+            if (issueStatusBaseName != JIRASTATUSOBSOLETE) {
+                jmlog.info('User ' + issue.fields.assignee."${accountField}"
+                    + " is not responsible anymore for Jira issue ${issue.key}; obsoleting")
+                transitionIssue(issue, JIRASTATUSOBSOLETE, JIRACOMMENTOBSOLETE, statusCache)
+            }
+            account.docs.remove(issue.fields."customfield_${JIRAPAGEIDFIELD}")
+            return
+        }
+
+        Map document = account.docs[issue.fields."customfield_${JIRAPAGEIDFIELD}"]
+        if (document.isObsolete) {
+            jmlog.info("Obsoleting Jira issue ${issue.key} for obsolete document Confluence Page Id "
+                + issue.fields."customfield_${JIRAPAGEIDFIELD}" + " for account ${issue.fields.assignee}")
+            transitionIssue(issue, JIRASTATUSOBSOLETE, JIRACOMMENTDOCUMENTOBSOLETE, statusCache)
+            account.docs.remove(issue.fields."customfield_${JIRAPAGEIDFIELD}")
+            return
+        }
+
+        // is this the issue with the current document version?
+        String issueDocVersion = issue.fields."customfield_${JIRAPAGEVERSIONFIELD}"
+        if (issueDocVersion == document.approvedVersion) {
+            jmlog.info("Found Jira issue ${issue.key} for user ${account.username} for document: "
+                + issue.fields."customfield_${JIRAPAGEIDFIELD}" + ", version ${document.approvedVersion}"
+                + ', activating training')
+            transitionIssue(issue, JIRASTATUSOPEN, JIRACOMMENTOPENAGAIN, statusCache)
+            account.docs.remove(issue.fields."customfield_${JIRAPAGEIDFIELD}")
+        } else {
+            jmlog.info("Obsoleting old Jira issue ${issue.key} for account ${issue.fields.assignee}, Page Id "
+                + issue.fields."customfield_${JIRAPAGEIDFIELD}" + ", version ${issueDocVersion}")
+            transitionIssue(issue, JIRASTATUSOBSOLETE, JIRACOMMENTOBSOLETE, statusCache)
+        }
+    }
+
+    jmlog.info("Finished Jira issues batch ${i}")
+
+    if (issueresult.nextPageToken) {
+        nextPageToken = issueresult.nextPageToken
+        i++
+    } else {
+        done = true
+    }
+}
+
+jmlog.info([remaining_docRoles: docRoles])
+
+// create remaining documents for users
+docRoles.each { user ->
+    user.value.docs.each { doc ->
+        // create new Jira issue
+        createTrainingIssue(user.value, doc.value)
+    }
+}
+
+jmlog.info('End')
+
+/*************************************************************************************************
+ * only method declarations below here
+ */
+
+void handleDocuments(Map rawdocuments, Map docRoles, Set availableRoles, Map rolesPagesMatrix) {
+    rawdocuments.results.findAll { result -> result.metadata.properties.johnermed }
+    .each { page ->
+        // check for illegal version in content property: Must be lower than current version
+        if (!page.metadata.properties.johnermed?.value?.lastApprovedVersion
+            || page.metadata.properties.johnermed?.value?.lastApprovedVersion.toInteger() > page.version.number) {
+                jmlog.warning("Illegal lastApprovedVersion ${page.metadata.properties.johnermed.value.lastApprovedVersion} "
+            + "is bigger than current page version ${page.version.number}; deleting content property.")
+                HttpResponse deleteResponse = deleteConfluence("/api/v2/pages/${page.id}/properties/${page.metadata.properties.johnermed.id}")
+                .asJson()
+                if (deleteResponse.status != 204) {
+                    jmlog.critical([message: 'Skipping this document',
+                    deleteResponse: deleteResponse.body.object.toMap()])
+                }
+                // assert deleteResponse.status == 204
+                return
+            }
+
+        if (!page.metadata.properties."${COMALAPROPKEY}") {
+                jmlog.error("Empty Comala content property, skipping page ${page}: "
+                + "Comala prop key: ${COMALAPROPKEY}: Value: " + page.metadata.properties."${COMALAPROPKEY}")
+                return
+        }
+
+        // assign this page to roles that are mentioned/approved within the page
+        page.metadata.properties.johnermed.value.trainingRoles.each { docrole ->
+                // jmlog.debug("processing document ${page.id} and role ${docrole}")
+                if (!availableRoles.contains(docrole)) {
+                    // jmlog.debug("skipping irrelevant role ${docrole} for page ${page.id}")
+                    return
+                }
+
+                // assign current page to users with matching roles
+                docRoles.findAll { myDocRole -> myDocRole.value.roles.contains(docrole) }
+                .each { myDocRole ->
+                    myDocRole.value.docs[page.id] = getPageInfo(page)
+                }
+        }
+
+        // assign this page to roles that are mentioned/approved on a distinct role-pages-matrix page
+        if (rolesPagesMatrix.containsKey(page.id)) {
+                jmlog.debug(['docRoles': docRoles, 'rolesPagesMatrix[page.id]': rolesPagesMatrix[page.id]])
+                docRoles.findAll { myDocRole -> myDocRole.value.roles.intersect(rolesPagesMatrix[page.id]) }
+                .each { myDocRole ->
+                    jmlog.debug(['text': 'adding roles to page', 'page.id': page.id])
+                    myDocRole.value.docs[page.id] = getPageInfo(page)
+                }
+        }
+    }
+}
+
+Map getPageInfo(Map page) {
+    return [
+        pageId:            page.id,
+        pageTitle:        page.metadata.properties.johnermed.value.approvedTitle,
+        pagePath:        page.ancestors.collect { ancestor -> ancestor.title }.join(' / '),
+        approvedVersion:    page.metadata.properties.johnermed.value.lastApprovedVersion as String,
+        isObsolete:    server ? page.metadata.properties."${COMALAPROPKEY}".value.currentState == COMALASTATUSOBSOLETE :
+            page.metadata.properties."${COMALAPROPKEY}".value.name.value == COMALASTATUSOBSOLETE
+    ]
+}
+
+Map getRolesPagesMatrix(Set availableRoles) {
+    HttpResponse rawPagesRolesResponse = getConfluence('/rest/api/content/search')
+        .queryString('cql', "${CONFSPACESCQLPREFIX}label='${CONFDOCROLESMATRIXLABEL}'")
+        .queryString('expand', 'metadata.properties.johnermedpageroles')
+        .queryString('limit', '2147483646')
+        .asJson()
+
+    done = false
+    Map rolesPagesMatrix = [:]
+
+    while (!done) {
+        Map rawPagesRolesDocuments = rawPagesRolesResponse.body.object.toMap()
+        if (rawPagesRolesResponse.status != 200) {
+            jmlog.alert(rawPagesRolesDocuments)
+        }
+        assert rawPagesRolesResponse.status == 200
+        handleRolesPagesMatrix(rawPagesRolesDocuments, availableRoles, rolesPagesMatrix)
+
+        if (rawPagesRolesDocuments._links.next) {
+            rawPagesRolesResponse = getConfluence(rawPagesRolesDocuments._links.next).asJson()
+    } else {
+            done = true
+        }
+    }
+    return rolesPagesMatrix
+}
+
+void handleRolesPagesMatrix(Map rolesPagesMatrixDocuments, Set availableRoles, Map rolesPagesMatrix) {
+    rolesPagesMatrixDocuments.results.findAll { result -> result.metadata.properties.johnermedpageroles }
+    .each { rolePageMatrixPage ->
+        jmlog.debug(['processing_rolePageMatrixPage': rolePageMatrixPage.id,
+            'johnermedpageroles': rolePageMatrixPage.metadata.properties.johnermedpageroles])
+
+        rolePageMatrixPage.metadata.properties.johnermedpageroles.value
+        .each { entry ->
+            documentPageId = entry.key
+            roleList = entry.value
+            jmlog.debug(['roleList': roleList, 'documentPageId': documentPageId])
+            if (!rolesPagesMatrix.containsKey(documentPageId)) {
+                        rolesPagesMatrix[documentPageId] = [] as Set
+            }
+            rolesPagesMatrix[documentPageId].addAll(roleList)
+            availableRoles.addAll(roleList)
+        }
+    }
+}
+
+// assuming destStateName is already the untranslated status name, so no mapping needed
+void transitionIssue(Map issue, String destStateName, String comment, Map statusCache) {
+    logger.info(statusCache.toString())
+    String statusId = issue.fields.status.id
+    String issueStatusBaseName = statusCache.computeIfAbsent(statusId) { id -> getJiraStatusName(id) }
+
+    if (issueStatusBaseName == destStateName) {
+        //        jmlog.debug("Issue ${issue.key} already in correct status ${destStateName}; nothing to do.")
+        return
+    }
+
+    if (issueStatusBaseName == JIRASTATUSINEFFECT) {
+        jmlog.debug("Issue ${issue.key} is in status ${JIRASTATUSINEFFECT}; leaving it untouched.")
+        return
+    }
+
+    jmlog.debug([available_jira_transitions: issue.transitions])
+    Map transition = issue.transitions.find { transition ->
+        statusCache.computeIfAbsent(transition.to.id) { id -> getJiraStatusName(id) }
+        .equals(destStateName)
+    }
+    jmlog.debug([matching_jira_transition: transition])
+
+    if (transition) {
+        String trainingbody = new groovy.json.JsonBuilder([
+            update: [
+                comment: [
+                    [
+                        add: [
+                            body: comment
+                        ]
+                    ]
+                ]
+            ],
+            transition: [
+                id: transition.id
+            ]
+        ])
+
+        jmlog.debug([trainingbody: trainingbody])
+        HttpResponse resultResponse = postJira("/rest/api/latest/issue/${issue.id}/transitions")
+                .header('Content-Type', 'application/json')
+                .header('Accept', 'application/json')
+                .body(trainingbody)
+                .asJson()
+        if (resultResponse.status != 204) {
+            jmlog.critical([message: 'Jira error; skipping this issue', resultResponse: resultResponse, issue: issue])
+            return
+        }
+
+        Map result = jsonSlurper.parseText(resultResponse.body.toString())
+        jmlog.info("Training issue transitioning result: ${result?.body}")
+    } else {
+        jmlog.error("No transition found for issue ${issue.key} from ${issue.fields.status.name} to ${destStateName}!")
+    }
+}
+
+String getJiraStatusName(String statusId) {
+    HttpResponse rawStatusResponse = getJira("/rest/api/3/status/${statusId}")
+    .asJson()
+
+    Map rawStatus = rawStatusResponse.body.object.toMap()
+    if (rawStatusResponse.status != 200 ) jmlog.alert(rawStatus)
+    assert rawStatusResponse.status == 200
+
+    return rawStatus.untranslatedName
+}
+
+void createTrainingIssue(Map user, Map doc) {
+    String modbody = new groovy.json.JsonBuilder([
+        fields: [
+            summary:    "${JIRATITLEPREFIX}${doc.pageTitle}",
+            assignee:    [
+                "${accountField}":  user.username
+            ],
+            "customfield_${JIRAPAGEIDFIELD}":  doc.pageId,
+            "customfield_${JIRAPAGEVERSIONFIELD}":  doc.approvedVersion,
+            "customfield_${JIRAPAGESTRUCTUREFIELD}":    doc.pagePath,
+            "customfield_${JIRAPAGEURLFIELD}":    getPageVersionURL(doc),
+            project: [
+                key:    JIRAPROJECTKEY
+            ],
+            issuetype: [
+                id:        taskType
+            ]
+        ]
+    ])
+    jmlog.debug([createtraining_modbody: modbody])
+
+    HttpResponse resultResponse = postJira('/rest/api/latest/issue')
+            .header('Content-Type', 'application/json')
+            .body(modbody)
+            .asJson()
+    if (resultResponse.status != 201) {
+        jmlog.critical([user: user, doc:doc, jiraresult: resultResponse.body.object.toMap()])
+    // continue
+    }
+//    Map result = resultResponse.body.object.toMap()
+//    jmlog.info("Issue created: " + result)
+//    HttpResponse issueResponse = getJira("/rest/api/latest/issue/${result.key}")
+//            .header('expand', 'transitions')
+//            .asJson()
+//    assert issueResponse.status == 200
+//    return issueResponse.body.object.toMap()
+}
+
+String getPageVersionURL(Map doc) {
+    if (!doc) {
+        return null
+    }
+
+    // strip all non-numeric characters
+    String approvedVersion = doc.approvedVersion.replaceAll('[^\\d.]', '')
+    HttpResponse pageversionresultResponse = getConfluence("/api/v2/pages/${doc.pageId}")
+            .queryString('version', approvedVersion)
+            .asJson()
+    if (pageversionresultResponse.status != 200) {
+        jmlog.alert([doc: doc, pageResponse: pageversionresultResponse.body.object.toMap()])
+    }
+    assert pageversionresultResponse.status == 200
+
+    Map pageversionresult = pageversionresultResponse.body.object.toMap()._links
+
+    String pageURL = pageversionresult.base + pageversionresult.webui
+    if (!server) {
+        String appendChar = pageURL.contains('?') ? '&' : '?'
+        pageURL += appendChar + "versionOverride=${doc.approvedVersion}&embeddedContentRender=version-at-save"
+    }
+
+    return pageURL
+}
+

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Preview {{ rule.id }} | Support Tools{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Synthetic sample data</p><h1>Email preview</h1><p>{{ rule.id }} · version {{ rule.version }}</p></div><a class="button ghost" href="{{ base_path }}/{{ rule.id }}/edit">Edit configuration</a></div>
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+<section class="preview-meta"><span>Subject</span><strong>{{ subject }}</strong></section>
+<div class="preview-grid">
+  <section class="panel"><h2>HTML</h2><iframe title="HTML email preview" sandbox srcdoc="{{ html_body|e }}"></iframe></section>
+  <section class="panel"><h2>Plain text</h2><pre>{{ text_body }}</pre></section>
+</div>
+<section class="panel test-panel">
+  <div><p class="eyebrow">Delivery check</p><h2>Send a test through the configured SMTP server</h2><p>The message uses synthetic employee data and adds <code>[TEST]</code> to the subject.</p></div>
+  <form method="post" action="{{ base_path }}/{{ rule.id }}/test-email">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Test recipient<input type="email" name="recipient" value="{{ actor.email }}" required></label>
+    <button class="button primary" type="submit">Send test email</button>
+  </form>
+</section>
+{% endblock %}
+

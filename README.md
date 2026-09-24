@@ -29,7 +29,7 @@ cp .env.example .env
 
 ### Shared SMTP configuration
 
-Vaultwarden, Penpot, and the OrangeHRM leave notifier use the same `SMTP_*` settings. Configure SMTP once in the environment file instead of adding application-specific SMTP variables.
+Vaultwarden, Penpot, Support Tools test email, and the OrangeHRM leave notifier use the same `SMTP_*` settings. Configure SMTP once in the environment file instead of adding application-specific SMTP variables.
 
 For implicit TLS on port 465:
 
@@ -50,7 +50,20 @@ For STARTTLS on port 587, use `SMTP_SECURITY=starttls`, `SMTP_SECURE=false`, and
 
 The `orangehrm-leave-notifier` service sends scheduled summaries of approved or taken leave without modifying OrangeHRM. Its database session is read-only, and delivery history is stored separately in the `orangehrm-leave-notifier-data` volume to prevent duplicate messages.
 
-Rules are defined in `config/orangehrm/leave-notifications.json`. Each rule supports:
+The Support Tools web app is the authoritative configuration store. PostgreSQL keeps rules, templates, and immutable revisions; `config/orangehrm/leave-notifications.json` and `config/orangehrm/email-templates/` are imported only when the database is empty. Every accepted change publishes an atomic snapshot to the shared `support-tools-runtime` volume, which the notifier reloads before each scheduler cycle.
+
+Open `https://<SUPPORT_HOST>/automations` through the existing portal login. The first version supports listing, creating, editing, enabling/disabling, previewing, sending a test email, viewing revision history, and restoring a revision. SMTP credentials remain environment-only and are never stored in the database.
+
+Start the local services independently of the full stack:
+
+```bash
+docker compose --env-file .env --profile development up -d mailpit support-tools-db support-tools orangehrm-leave-notifier
+docker compose --env-file .env logs -f support-tools orangehrm-leave-notifier
+```
+
+`SUPPORT_TOOLS_DEV_AUTH_BYPASS` stays `false` by default because nginx supplies the authenticated Keycloak identity. Set it to `true` only for deliberate direct-container UI debugging; production preflight warns if it is enabled.
+
+Each rule supports:
 
 1. `schedule.days` and `schedule.time` in the configured `TZ`.
 2. `start_offset_days` and `days` to select today, tomorrow, or a future date range.
@@ -60,7 +73,7 @@ Rules are defined in `config/orangehrm/leave-notifications.json`. Each rule supp
 6. `send_when_empty` to optionally send a message when nobody matches.
 7. `include_leave_type` to disclose the leave category. It defaults to `false` in the supplied rule to avoid exposing sensitive leave reasons.
 
-Email presentation uses sandboxed Jinja templates with strict variables and HTML auto-escaping:
+Email presentation uses sandboxed Jinja templates stored with each database rule revision, with strict variables and HTML auto-escaping. The following files provide the initial templates:
 
 1. `config/orangehrm/email-templates/daily-absence-summary.html.j2`
 2. `config/orangehrm/email-templates/daily-absence-summary.txt.j2`
@@ -97,6 +110,7 @@ docker compose --env-file .env logs -f orangehrm-leave-notifier
 ```
 
 Use `--date YYYY-MM-DD` to preview another date. `--force` intentionally bypasses duplicate protection and should only be used for testing or an approved resend.
+The source JSON and template files are fallback seed material, not a deployment mechanism for later edits. Use the web app after initialization so PostgreSQL, revision history, and the runtime snapshot remain consistent.
 
 Validate the production query and templates without printing employee details or sending email:
 
@@ -172,9 +186,15 @@ docker compose --env-file .env logs --tail=120 netbird-server netbird-dashboard
 curl -fsS https://<NETBIRD_HOST>/api/instance
 ```
 
+For the pfSense HAProxy h2c/WebSocket requirements, regression tests, failure
+signatures, and the difference between TCP/22 and NetBird SSH policies, see
+[`docs/netbird_proxy_and_ssh_runbook.md`](docs/netbird_proxy_and_ssh_runbook.md).
+
 ## 2. Production
 
 ### Step 1: Prepare production env
+
+Back up both the `support-tools-db-data` PostgreSQL volume and the `support-tools-runtime` volume before upgrades. The database is authoritative; the runtime volume is a reproducible notifier snapshot, but retaining both simplifies rollback.
 
 1. Use `.env.production` as source of truth.
 2. Generate/refresh strong secrets:

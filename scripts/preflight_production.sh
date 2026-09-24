@@ -114,6 +114,8 @@ for k in \
   OSTICKET_OIDC_CLIENT_SECRET \
   SUPPORT_PORTAL_OIDC_CLIENT_SECRET \
   SUPPORT_PORTAL_OIDC_COOKIE_SECRET \
+  SUPPORT_TOOLS_DB_PASSWORD \
+  SUPPORT_TOOLS_SESSION_SECRET \
   NETBIRD_RELAY_AUTH_SECRET \
   NETBIRD_SESSION_COOKIE_KEY \
   NETBIRD_DATASTORE_ENCRYPTION_KEY \
@@ -125,6 +127,8 @@ do
   check_not_placeholder "$k"
 done
 
+check_min_length "SUPPORT_TOOLS_DB_PASSWORD" 32
+check_min_length "SUPPORT_TOOLS_SESSION_SECRET" 64
 check_min_length "NETBIRD_RELAY_AUTH_SECRET" 32
 check_min_length "NETBIRD_ADMIN_PASSWORD" 16
 check_min_length "NETBIRD_OIDC_CLIENT_SECRET" 32
@@ -147,6 +151,8 @@ check_equals "KEYCLOAK_START_CMD" "start"
 check_equals "KEYCLOAK_HOSTNAME_STRICT" "true"
 check_equals "SUPPORT_PORTAL_OIDC_SSL_INSECURE_SKIP_VERIFY" "false"
 check_equals "VAULTWARDEN_SIGNUPS_ALLOWED" "false"
+check_equals "SUPPORT_TOOLS_COOKIE_SECURE" "true"
+check_equals "SUPPORT_TOOLS_DEV_AUTH_BYPASS" "false"
 check_equals "NETBIRD_DISABLE_ANONYMOUS_METRICS" "true"
 
 netbird_host="$(env_value NETBIRD_HOST)"
@@ -189,6 +195,14 @@ if [[ "$le_enabled" == "true" ]]; then
 fi
 
 nginx_mode="$(env_value NGINX_MODE)"
+if [[ "$nginx_mode" == "http" ]]; then
+  if sed -n '/listen 80 default_server;/,+5p' nginx/templates/support-stack.http.conf.template | grep -Fq 'http2 on;'; then
+    echo "[OK] HTTP-mode default listener accepts h2c for NetBird gRPC"
+  else
+    echo "[FAIL] HTTP-mode default listener must enable http2 for NetBird gRPC"
+    failures=$((failures + 1))
+  fi
+fi
 if [[ "$nginx_mode" != "https" ]]; then
   echo "[OK] Local TLS certificate check skipped (NGINX_MODE=${nginx_mode:-<unset>})"
 elif [[ -f nginx/certs/support-stack.crt ]]; then

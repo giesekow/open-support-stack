@@ -1,0 +1,8 @@
+{
+    "executionUser": "INITIATING_USER",
+    "action": "RUN",
+    "className": "com.adaptavist.sr.cloud.events.ScheduledScriptExecution",
+    "atlassianUserAccountId": "622f3bd93fbb8800683f5abe",
+    "type": "com.adaptavist.sr.cloud.input.ScriptExecutionRequest",
+    "script": "package jm.confluence.documents.training\r\n\r\n   // Script name: CreateDocumentTrainingTasks.groovy\r\n   // Script built date: May 15 2025\r\n   // Script built time: 08:25:22\r\n   // Git commit: 5c2f67663725994e0ff1c2f5b1c1311155f9dcc6\r\n   // Script version: 1.2.4\r\n   // Logging via Google: false\r\n\r\n/*\r\n // === SERVER SERVER SERVER SERVER\r\n @Grapes(\r\n @Grab(group='com.mashape.unirest', module='unirest-java', version='1.4.9')\r\n // this doesn't work: @Grab(group='com.konqhq', module='unirest-java', ver"
+}

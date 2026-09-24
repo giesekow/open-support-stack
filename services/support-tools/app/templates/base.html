@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Support Tools{% endblock %}</title>
+  <link rel="stylesheet" href="{{ base_path }}/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ base_path }}">
+      <span class="brand-mark">ST</span>
+      <span><strong>Support Tools</strong><small>Operations control plane</small></span>
+    </a>
+    <nav>
+      <a href="/">Portal</a>
+      <a class="active" href="{{ base_path }}">Automations</a>
+      <span class="identity">{{ actor.name }}</span>
+    </nav>
+  </header>
+  <main class="shell">
+    {% if message %}<div class="notice" role="status">{{ message }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
+

@@ -452,18 +452,24 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(message)s",
     )
     args = parse_arguments()
-    config = load_config(env("ORANGEHRM_LEAVE_NOTIFIER_CONFIG", "/config/leave-notifications.json"))
-    timezone = ZoneInfo(env("TZ", config.get("timezone", "UTC")))
+    config_path = env("ORANGEHRM_LEAVE_NOTIFIER_CONFIG", "/config/leave-notifications.json")
+    template_directory = env("ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR", "/config/templates")
     ledger = DeliveryLedger(env("ORANGEHRM_LEAVE_NOTIFIER_LEDGER", "/data/deliveries.sqlite3"))
-    renderer = TemplateRenderer(env("ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR", "/config/templates"))
+
+    def load_runtime() -> tuple[dict[str, Any], ZoneInfo, TemplateRenderer]:
+        config = load_config(config_path)
+        timezone = ZoneInfo(env("TZ", config.get("timezone", "UTC")))
+        return config, timezone, TemplateRenderer(template_directory)
 
     if args.once or args.run_now:
+        config, timezone, renderer = load_runtime()
         return execute(config, ledger, renderer, args, datetime.now(timezone))
 
     interval = max(15, int(env("ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS", "60")))
-    LOG.info("Scheduler started with %d rule(s), timezone %s", len(config["rules"]), timezone)
+    LOG.info("Scheduler started; configuration reload interval is %d seconds", interval)
     while True:
         try:
+            config, timezone, renderer = load_runtime()
             execute(config, ledger, renderer, args, datetime.now(timezone))
         except Exception:
             LOG.exception("Scheduled notification cycle failed")

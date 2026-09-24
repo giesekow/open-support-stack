@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if editing else 'New' }} automation | Support Tools{% endblock %}
+{% macro value(name, fallback='') %}{{ rule[name] if rule is mapping else rule|attr(name) }}{% endmacro %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">{{ 'Version ' ~ rule.version if editing else 'Draft' }}</p><h1>{{ 'Configure automation' if editing else 'Create automation' }}</h1></div>
+  <a class="button ghost" href="{{ base_path }}">Back to automations</a>
+</div>
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+
+<form class="editor" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <section class="panel">
+    <div class="panel-title"><span>01</span><div><h2>Identity & delivery</h2><p>Name the rule and choose who receives it.</p></div></div>
+    <div class="fields two">
+      <label>Rule ID<input name="id" value="{{ rule.id }}" pattern="[a-z0-9][a-z0-9-]{1,63}" {{ 'readonly' if editing else 'required' }}><small>Lowercase letters, numbers, and hyphens.</small></label>
+      <label class="switch-row"><input type="checkbox" name="enabled" {{ 'checked' if rule.enabled }}><span><strong>Enabled</strong><small>Published rules run on their schedule.</small></span></label>
+    </div>
+    <label>Recipients<textarea name="recipients" rows="3" required>{{ rule.recipients|join('\n') }}</textarea><small>One email address per line or comma-separated.</small></label>
+    <label>Subject<input name="subject" value="{{ rule.subject }}" required></label>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title"><span>02</span><div><h2>Schedule & period</h2><p>Control when the rule runs and which dates it examines.</p></div></div>
+    <fieldset><legend>Run on</legend><div class="day-picker">{% for day in weekdays %}<label><input type="checkbox" name="schedule_days" value="{{ day }}" {{ 'checked' if day in rule.schedule_days }}><span>{{ day|upper }}</span></label>{% endfor %}</div></fieldset>
+    <div class="fields three">
+      <label>Run time<input type="time" name="schedule_time" value="{{ rule.schedule_time if rule is mapping else rule.schedule_time.strftime('%H:%M') }}" required></label>
+      <label>Start offset (days)<input type="number" name="start_offset_days" min="-366" max="366" value="{{ rule.start_offset_days }}" required><small>0 starts today; 1 starts tomorrow.</small></label>
+      <label>Period length (days)<input type="number" name="period_days" min="1" max="366" value="{{ rule.period_days }}" required></label>
+    </div>
+    <fieldset><legend>Leave status</legend><div class="checks"><label><input type="checkbox" name="statuses" value="2" {{ 'checked' if 2 in rule.statuses }}> Approved</label><label><input type="checkbox" name="statuses" value="3" {{ 'checked' if 3 in rule.statuses }}> Taken</label></div></fieldset>
+    <div class="checks"><label><input type="checkbox" name="send_when_empty" {{ 'checked' if rule.send_when_empty }}> Send when no absences match</label><label><input type="checkbox" name="include_leave_type" {{ 'checked' if rule.include_leave_type }}> Include leave type</label></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title"><span>03</span><div><h2>Optional filters</h2><p>Values are case-insensitive names or employee email addresses, not UUIDs.</p></div></div>
+    <div class="fields three">
+      <label>Subunits<textarea name="filter_subunits" rows="4">{{ rule.filters.subunits|join('\n') }}</textarea></label>
+      <label>Locations<textarea name="filter_locations" rows="4">{{ rule.filters.locations|join('\n') }}</textarea></label>
+      <label>Employee emails<textarea name="filter_employee_emails" rows="4">{{ rule.filters.employee_emails|join('\n') }}</textarea></label>
+    </div>
+  </section>
+
+  <section class="panel templates-panel">
+    <div class="panel-title"><span>04</span><div><h2>Email templates</h2><p>Jinja templates are validated with strict variables before publication.</p></div></div>
+    <label>Plain-text template<textarea class="code" name="text_template" rows="16" required>{{ rule.text_template }}</textarea></label>
+    <label>HTML template<textarea class="code" name="html_template" rows="24" required>{{ rule.html_template }}</textarea></label>
+    <details><summary>Available template variables</summary><code>period_label, count, generated_at, rule.id, period.start, period.end, absences[]</code><p>Each absence exposes date, date_label, employee_id, employee_name, employee_email, type_label, duration, subunit, locations, locations_label, and status.</p></details>
+  </section>
+
+  <div class="savebar"><span>Saving creates an audit revision and publishes the runtime snapshot.</span><button class="button primary" type="submit">{{ 'Save & publish' if editing else 'Create & publish' }}</button></div>
+</form>
+{% endblock %}
+

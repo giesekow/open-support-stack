@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Automations | Support Tools{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Automation registry</p>
+    <h1>Make routine work dependable.</h1>
+    <p>Configure, preview, test, and publish operational automations without editing runtime files by hand.</p>
+  </div>
+  <a class="button primary" href="{{ base_path }}/new">New automation</a>
+</section>
+
+<section class="section-head">
+  <div><p class="eyebrow">OrangeHRM</p><h2>Leave notifications</h2></div>
+  <span class="count">{{ rules|length }} rule{% if rules|length != 1 %}s{% endif %}</span>
+</section>
+
+<div class="rule-grid">
+{% for rule in rules %}
+  <article class="rule-card">
+    <div class="rule-top">
+      <span class="status {{ 'live' if rule.enabled else 'paused' }}">{{ 'Enabled' if rule.enabled else 'Paused' }}</span>
+      <span class="version">v{{ rule.version }}</span>
+    </div>
+    <h3>{{ rule.id|replace('-', ' ')|title }}</h3>
+    <p class="rule-id">{{ rule.id }}</p>
+    <dl>
+      <div><dt>Schedule</dt><dd>{{ rule.schedule_days|join(', ')|upper }} at {{ rule.schedule_time.strftime('%H:%M') }}</dd></div>
+      <div><dt>Window</dt><dd>Offset {{ rule.start_offset_days }} days, covering {{ rule.period_days }} day{% if rule.period_days != 1 %}s{% endif %}</dd></div>
+      <div><dt>Recipients</dt><dd>{{ rule.recipients|join(', ') }}</dd></div>
+    </dl>
+    <div class="actions">
+      <a class="button" href="{{ base_path }}/{{ rule.id }}/edit">Configure</a>
+      <a class="button ghost" href="{{ base_path }}/{{ rule.id }}/preview">Preview & test</a>
+      <a class="button ghost" href="{{ base_path }}/{{ rule.id }}/history">History</a>
+      <form method="post" action="{{ base_path }}/{{ rule.id }}/toggle">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="button danger-quiet" type="submit">{{ 'Pause' if rule.enabled else 'Enable' }}</button>
+      </form>
+    </div>
+    <p class="audit">Updated {{ rule.updated_at.strftime('%d %b %Y, %H:%M') }} by {{ rule.updated_by }}</p>
+  </article>
+{% else %}
+  <div class="empty"><h3>No automation rules yet</h3><p>Create the first rule to publish a notifier configuration.</p></div>
+{% endfor %}
+</div>
+{% endblock %}
+

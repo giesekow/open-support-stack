@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}History {{ rule.id }} | Support Tools{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Audit trail</p><h1>{{ rule.id }}</h1><p>Every published change is immutable and can be restored as a new version.</p></div><a class="button ghost" href="{{ base_path }}/{{ rule.id }}/edit">Back to editor</a></div>
+<div class="timeline">
+{% for revision in revisions %}
+  <article class="revision {{ 'current' if revision.version == rule.version }}">
+    <div><span class="version">v{{ revision.version }}</span><strong>{{ revision.created_at.strftime('%d %b %Y, %H:%M') }}</strong><p>{{ revision.created_by }}</p></div>
+    <div><p>{{ revision.snapshot.schedule_days|join(', ')|upper }} at {{ revision.snapshot.schedule_time }} · {{ revision.snapshot.recipients|length }} recipient{% if revision.snapshot.recipients|length != 1 %}s{% endif %}</p></div>
+    {% if revision.version != rule.version %}<form method="post" action="{{ base_path }}/{{ rule.id }}/restore/{{ revision.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost" type="submit">Restore</button></form>{% else %}<span class="status live">Current</span>{% endif %}
+  </article>
+{% endfor %}
+</div>
+{% endblock %}
+

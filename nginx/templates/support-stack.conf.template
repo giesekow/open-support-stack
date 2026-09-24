@@ -344,6 +344,22 @@ server {
         proxy_pass_request_body off;
     }
 
+    location ~ ^/automations(?:/|$) {
+        auth_request /oauth2/auth;
+        error_page 401 =302 /oauth2/start?rd=https://$host$request_uri;
+        auth_request_set $auth_user $upstream_http_x_auth_request_user;
+        auth_request_set $auth_email $upstream_http_x_auth_request_email;
+
+        set $upstream_support_tools support-tools:8000;
+        proxy_pass http://$upstream_support_tools;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Auth-Request-User $auth_user;
+        proxy_set_header X-Auth-Request-Email $auth_email;
+    }
+
     location / {
         auth_request /oauth2/auth;
         error_page 401 =302 /oauth2/start?rd=https://$host$request_uri;
