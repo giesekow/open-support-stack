@@ -153,6 +153,128 @@ docker logs --since 10m support-netbird-server
 netbird status -d
 ```
 
+## Reach a Windows Routing Peer's LAN IP
+
+Use a NetBird Network resource when support engineers must reach a service on
+a customer's normal LAN address instead of the peer's `100.x` NetBird address.
+For one host, create a `/32` resource rather than exposing the full subnet.
+
+Example:
+
+```text
+Customer Windows Server LAN IP: 10.250.20.110
+Network resource:               10.250.20.110/32
+Required service:               RDP on TCP/3389
+```
+
+### Management Configuration
+
+1. Open **Network Routing -> Networks** and create or select the customer's
+   Network.
+2. Add a resource with address `10.250.20.110/32`.
+3. Assign the resource to the customer destination group, such as
+   `Customer-Group`.
+4. Add the Windows Server peer as a routing peer for that Network. Leave
+   masquerading enabled unless the customer LAN has an explicit return route
+   for the NetBird address range.
+5. Add or verify a one-way policy from `Support-Group` to the resource group,
+   restricted to the required protocol and port, such as TCP/3389.
+6. Add or verify a one-way peer policy from `Support-Group` to the group that
+   contains the Windows routing peer on the same port. Reaching a service on
+   the routing peer itself requires both the resource route and permission to
+   the peer's input path.
+
+The same `Support-Group -> Customer-Group` policy can cover both paths when
+the Windows peer and its `/32` resource are both members of
+`Customer-Group`. Keep the policy unidirectional and disable the default
+`All -> All` policy to preserve customer-to-customer isolation.
+
+### Enable Windows Local Forwarding
+
+Windows NetBird peers use the userspace router. To deliver routed traffic to a
+service on the routing peer's own LAN address, run the following in an
+elevated PowerShell window on the customer Windows Server:
+
+```powershell
+netbird service reconfigure --service-env NB_ENABLE_LOCAL_FORWARDING=true
+Restart-Service NetBird
+Start-Sleep -Seconds 5
+netbird status -d
+```
+
+This setting is not required when connecting directly to the server's
+`100.x` NetBird address. It is required for this Windows self-access path:
+
+```text
+Support peer -> NetBird tunnel -> Windows routing peer -> its own LAN IP
+```
+
+Confirm that the resource address belongs to the Windows Server:
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 |
+  Where-Object IPAddress -eq "10.250.20.110"
+```
+
+The service must listen on that LAN address or on `0.0.0.0`, and Windows
+Firewall must permit the selected service port.
+
+To remove local forwarding later:
+
+```powershell
+netbird service reconfigure --service-env NB_ENABLE_LOCAL_FORWARDING=false
+Restart-Service NetBird
+```
+
+### Verify the Support Client Route
+
+On the Windows support machine, use an elevated PowerShell window:
+
+```powershell
+netbird networks ls
+
+Get-NetRoute -DestinationPrefix "10.250.20.110/32" `
+  -ErrorAction SilentlyContinue |
+  Format-Table -AutoSize
+```
+
+The Network must be `Selected`, and the `/32` route must use the NetBird
+`wt0` interface. If the route is missing after removing a previous manual
+route, reselect the Network and restart NetBird:
+
+```powershell
+netbird networks deselect <network-id>
+Start-Sleep -Seconds 2
+netbird networks select <network-id>
+Restart-Service NetBird
+Start-Sleep -Seconds 5
+```
+
+Do not add a permanent Windows route manually. NetBird should install and
+remove the route according to the Network selection and access policy.
+
+Test the approved service:
+
+```powershell
+Test-NetConnection 10.250.20.110 -Port 3389
+```
+
+Expected:
+
+```text
+InterfaceAlias   : wt0
+TcpTestSucceeded : True
+```
+
+If the peer's `100.x` address works but its LAN `/32` address does not, check
+these items in order:
+
+1. The Network is selected and the `/32` route exists on the support peer.
+2. The `/32` resource has a support-to-resource policy for the service port.
+3. The routing peer has a support-to-peer policy for the service port.
+4. `NB_ENABLE_LOCAL_FORWARDING=true` is active on a Windows routing peer.
+5. The service bind address and Windows Firewall allow the LAN-IP connection.
+
 ## TCP Port 22 Versus NetBird SSH
 
 These policy types have different authentication models.
