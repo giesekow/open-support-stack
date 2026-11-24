@@ -10,8 +10,13 @@
   <a class="button primary" href="{{ base_path }}/new">New automation</a>
 </section>
 
+<section class="callout">
+  <div><p class="eyebrow">Identity lifecycle</p><h2>Provisioning control plane</h2><p>Reconcile Keycloak eligibility with application accounts using reviewable dry-run plans.</p></div>
+  <a class="button primary" href="{{ base_path }}/provisioning">Open provisioning</a>
+</section>
+
 <section class="section-head">
-  <div><p class="eyebrow">OrangeHRM</p><h2>Leave notifications</h2></div>
+  <div><p class="eyebrow">Frappe HR</p><h2>Leave notifications</h2></div>
   <span class="count">{{ rules|length }} rule{% if rules|length != 1 %}s{% endif %}</span>
 </section>
 
@@ -45,4 +50,3 @@
 {% endfor %}
 </div>
 {% endblock %}
-

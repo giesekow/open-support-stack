@@ -29,7 +29,7 @@ cp .env.example .env
 
 ### Shared SMTP configuration
 
-Vaultwarden, Penpot, Support Tools test email, and the OrangeHRM leave notifier use the same `SMTP_*` settings. Configure SMTP once in the environment file instead of adding application-specific SMTP variables.
+Vaultwarden, Penpot, Support Tools test email, and the Frappe HR leave notifier use the same `SMTP_*` settings. Configure SMTP once in the environment file instead of adding application-specific SMTP variables.
 
 For implicit TLS on port 465:
 
@@ -46,37 +46,37 @@ SMTP_FROM=no-reply@example.com
 
 For STARTTLS on port 587, use `SMTP_SECURITY=starttls`, `SMTP_SECURE=false`, and `SMTP_STARTTLS=true`. Local development uses `mailpit:1025` with `SMTP_SECURITY=off`, `SMTP_SECURE=false`, and `SMTP_STARTTLS=false`.
 
-### OrangeHRM leave notifications
+### Frappe HR leave notifications
 
-The `orangehrm-leave-notifier` service sends scheduled summaries of approved or taken leave without modifying OrangeHRM. Its database session is read-only, and delivery history is stored separately in the `orangehrm-leave-notifier-data` volume to prevent duplicate messages.
+The `frappe-hr-leave-notifier` service sends scheduled summaries of submitted, approved leave without modifying Frappe HR. It uses a dedicated database account with `SELECT` access only, discovers the single schema granted to that account, and also marks its session read-only. The existing `orangehrm-leave-notifier-data` volume is intentionally reused during cutover so previously delivered summaries are not resent.
 
-The Support Tools web app is the authoritative configuration store. PostgreSQL keeps rules, templates, and immutable revisions; `config/orangehrm/leave-notifications.json` and `config/orangehrm/email-templates/` are imported only when the database is empty. Every accepted change publishes an atomic snapshot to the shared `support-tools-runtime` volume, which the notifier reloads before each scheduler cycle.
+The Support Tools web app is the authoritative configuration store. PostgreSQL keeps rules, templates, and immutable revisions; `config/frappe-hr/leave-notifications.json` and `config/frappe-hr/email-templates/` are imported only when the database is empty. Every accepted change publishes an atomic snapshot to the shared `support-tools-runtime` volume, which the notifier reloads before each scheduler cycle.
 
-Open `https://<SUPPORT_HOST>/automations` through the existing portal login. The first version supports listing, creating, editing, enabling/disabling, previewing, sending a test email, viewing revision history, and restoring a revision. SMTP credentials remain environment-only and are never stored in the database.
+Open `https://<SUPPORT_HOST>/automations` through the existing portal login. Access is limited to members of the Keycloak `support-admin` group; authentication alone is not sufficient. The first version supports listing, creating, editing, enabling/disabling, previewing, sending a test email, viewing revision history, and restoring a revision. SMTP credentials remain environment-only and are never stored in the database. See `docs/support_tools_operations.md` for membership, deployment, and verification procedures.
 
 Start the local services independently of the full stack:
 
 ```bash
-docker compose --env-file .env --profile development up -d mailpit support-tools-db support-tools orangehrm-leave-notifier
-docker compose --env-file .env logs -f support-tools orangehrm-leave-notifier
+docker compose --env-file .env --profile development up -d mailpit support-tools-db support-tools frappe-hr-leave-notifier
+docker compose --env-file .env logs -f support-tools frappe-hr-leave-notifier
 ```
 
-`SUPPORT_TOOLS_DEV_AUTH_BYPASS` stays `false` by default because nginx supplies the authenticated Keycloak identity. Set it to `true` only for deliberate direct-container UI debugging; production preflight warns if it is enabled.
+`SUPPORT_TOOLS_ALLOWED_GROUP` defaults to `support-admin`. The realm template and Keycloak sync script create this group, its matching realm role, and the `groups` claim mapper for `support-portal`. Users must sign out and back in after membership changes. `SUPPORT_TOOLS_DEV_AUTH_BYPASS` stays `false` by default because nginx supplies the authenticated Keycloak identity. Set it to `true` only for deliberate direct-container UI debugging; production preflight rejects it when enabled.
 
 Each rule supports:
 
 1. `schedule.days` and `schedule.time` in the configured `TZ`.
 2. `start_offset_days` and `days` to select today, tomorrow, or a future date range.
 3. `recipients` for one or more email addresses.
-4. `filters.subunits`, `filters.locations`, and `filters.employee_emails`. Empty lists include everyone.
-5. `statuses`: `2` for approved/scheduled leave and `3` for taken leave.
+4. `filters.subunits`, `filters.locations`, and `filters.employee_emails`. In Frappe HR these map to employee department, branch, and email. Empty lists include everyone.
+5. `statuses`: `Approved`; only submitted (`docstatus=1`) leave applications are eligible. Legacy OrangeHRM values `2` and `3` are migrated automatically.
 6. `send_when_empty` to optionally send a message when nobody matches.
 7. `include_leave_type` to disclose the leave category. It defaults to `false` in the supplied rule to avoid exposing sensitive leave reasons.
 
 Email presentation uses sandboxed Jinja templates stored with each database rule revision, with strict variables and HTML auto-escaping. The following files provide the initial templates:
 
-1. `config/orangehrm/email-templates/daily-absence-summary.html.j2`
-2. `config/orangehrm/email-templates/daily-absence-summary.txt.j2`
+1. `config/frappe-hr/email-templates/daily-absence-summary.html.j2`
+2. `config/frappe-hr/email-templates/daily-absence-summary.txt.j2`
 
 Select templates per rule with `templates.html` and `templates.text`. The `subject` field is also a Jinja template. Available values are:
 
@@ -90,23 +90,23 @@ Raw database rows are never passed to templates. When `include_leave_type` is fa
 Development SMTP points to Mailpit by default. Test a rule without sending:
 
 ```bash
-docker compose --env-file .env run --rm orangehrm-leave-notifier \
+docker compose --env-file .env run --rm frappe-hr-leave-notifier \
   --run-now --rule daily-absence-summary --dry-run --force
 ```
 
 Send a test even when no leave records match, then inspect it at `http://127.0.0.1:8025`:
 
 ```bash
-docker compose --env-file .env --profile development up -d mailpit orangehrm-db
-docker compose --env-file .env run --rm orangehrm-leave-notifier \
+docker compose --env-file .env --profile development up -d mailpit erpnext-db support-tools-db support-tools
+docker compose --env-file .env run --rm frappe-hr-leave-notifier \
   --run-now --rule daily-absence-summary --send-empty --force
 ```
 
 Start the continuous scheduler:
 
 ```bash
-docker compose --env-file .env up -d orangehrm-leave-notifier
-docker compose --env-file .env logs -f orangehrm-leave-notifier
+docker compose --env-file .env up -d frappe-hr-leave-notifier
+docker compose --env-file .env logs -f frappe-hr-leave-notifier
 ```
 
 Use `--date YYYY-MM-DD` to preview another date. `--force` intentionally bypasses duplicate protection and should only be used for testing or an approved resend.
@@ -115,7 +115,7 @@ The source JSON and template files are fallback seed material, not a deployment 
 Validate the production query and templates without printing employee details or sending email:
 
 ```bash
-docker compose --env-file .env run --rm orangehrm-leave-notifier \
+docker compose --env-file .env run --rm frappe-hr-leave-notifier \
   --run-now --rule daily-absence-summary --send-empty --validate-only --force
 ```
 
@@ -156,16 +156,16 @@ Render and start NetBird:
 docker compose --env-file .env up -d netbird-server netbird-dashboard
 ```
 
-The first local owner is bootstrapped from `NETBIRD_ADMIN_EMAIL` and the bcrypt hash in `NETBIRD_ADMIN_PASSWORD_HASH_B64`. Keep `NETBIRD_ADMIN_PASSWORD` as the corresponding break-glass password. The hash is base64-encoded so Docker Compose does not interpolate bcrypt's `$` characters. To add Keycloak after the services are reachable:
+The first local owner is bootstrapped from `NETBIRD_ADMIN_EMAIL` and the bcrypt hash in `NETBIRD_ADMIN_PASSWORD_HASH_B64`. Keep `NETBIRD_ADMIN_PASSWORD` as the corresponding break-glass password. The hash is base64-encoded so Docker Compose does not interpolate bcrypt's `$` characters. After the services are reachable, configure the supported API and Keycloak integration idempotently:
 
-1. Run `./scripts/sync_keycloak_redirects.sh .env` to create/update the confidential `netbird` client.
-2. Sign in to NetBird with the local owner.
-3. Open `Settings → Identity Providers → Add Identity Provider`.
-4. Select `Keycloak` or `Generic OIDC` and set name `Keycloak`.
-5. Set client ID from `NETBIRD_OIDC_CLIENT_ID`, client secret from `NETBIRD_OIDC_CLIENT_SECRET`, and issuer `https://<SSO_HOST>/realms/<KEYCLOAK_REALM>`.
-6. Confirm the displayed callback starts with `https://<NETBIRD_HOST>/oauth2/callback/`, save, log out, and test the Keycloak button.
+```bash
+./scripts/bootstrap_netbird_provisioning.sh .env
+docker compose --env-file .env up -d --force-recreate support-tools
+./scripts/sync_keycloak_redirects.sh .env
+./scripts/configure_netbird_oidc.sh .env
+```
 
-The Keycloak client includes a `groups` claim mapper. After SSO works, optionally enable JWT group sync under `Settings → Groups`, use claim `groups`, and restrict admission to a dedicated Keycloak group before onboarding users.
+The NetBird client requires both `employees` and `app-netbird`. Its token mapper emits only the hardcoded `app-netbird` group, preventing unrelated Keycloak groups from becoming NetBird policy groups. The OIDC configuration permits automatic JIT because this dual gate runs before registration. See [`docs/identity-provisioning-netbird-validation.md`](docs/identity-provisioning-netbird-validation.md) for the tested lifecycle and limitations.
 
 Production prerequisites for NetBird:
 
@@ -240,18 +240,21 @@ docker compose --env-file .env.production pull
 ```bash
 docker compose --env-file .env.production up -d
 ```
-4. Synchronize Keycloak clients after Keycloak is ready. This is required for existing realms because startup imports do not overwrite them:
+4. Synchronize and harden Keycloak after it is ready. Existing realms are not overwritten by startup imports, so both idempotent scripts are required:
 ```bash
 ./scripts/sync_keycloak_redirects.sh .env.production
+./scripts/harden_keycloak.sh .env.production
 ```
-5. ERPNext first boot is now explicit (one-time bootstrap profile):
+The hardening script enables the approved brute-force controls, requires TOTP enrollment for `platform-admin`, `support-engineer`, and `support-admin`, and assigns reviewed delegated roles to `platform-admin`. Members of `employees` alone are not required to enroll TOTP. Protected-group membership takes precedence when a user belongs to both group types, and the hardening script must be rerun after protected-group membership changes.
+5. ERPNext/HRMS bootstrap is explicit. Stop the notifier before rerunning bootstrap during upgrades because bootstrap recreates its least-privilege database account:
 ```bash
+docker compose --env-file .env.production stop frappe-hr-leave-notifier
 docker compose --env-file .env.production --profile bootstrap up -d erpnext-configurator erpnext-create-site
 docker compose --env-file .env.production logs -f erpnext-create-site
 ```
 6. Start or refresh ERPNext runtime services:
 ```bash
-docker compose --env-file .env.production up -d erpnext-backend erpnext-websocket erpnext-queue-short erpnext-queue-long erpnext-scheduler erpnext-frontend
+docker compose --env-file .env.production up -d erpnext-backend erpnext-websocket erpnext-queue-short erpnext-queue-long erpnext-scheduler erpnext-frontend frappe-hr-leave-notifier
 ```
 7. If bootstrap reports duplicate module errors but `bench list-apps` already shows `erpnext`, run recovery migrate:
 ```bash
@@ -266,9 +269,9 @@ docker compose --env-file .env.production ps erpnext-db erpnext-frontend erpnext
 ```bash
 docker compose --env-file .env.production up -d oauth2-proxy-portal
 ```
-10. Apply Seafile trusted-origin/CSRF settings (recommended after first Seafile start or hostname changes):
+10. Recreate Seafile after first start or hostname/OIDC changes. The mounted init
+    hook idempotently applies HTTPS service URLs, trusted origins, and Keycloak OAuth:
 ```bash
-./scripts/configure_seafile_csrf.sh .env.production
 docker compose --env-file .env.production up -d --force-recreate seafile
 ```
 11. If `NGINX_MODE=https` and `ENABLE_LETSENCRYPT=true`, wait for initial cert issuance and check logs:
@@ -304,6 +307,14 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
    - `https://<PENPOT_HOST>`
    - `https://<STATUS_HOST>`
 
+### Keycloak upgrades and rollback
+
+1. Pin `KEYCLOAK_IMAGE` to the reviewed immutable digest; do not deploy a mutable major/minor tag.
+2. Before an upgrade, create protected backups of the Keycloak PostgreSQL database and the matching stack configuration/environment. Verify archive/database integrity and restrict permissions.
+3. Rehearse the target image against an isolated restore with no published ports. Verify schema migration, OIDC discovery, realm access, and a controlled login.
+4. Stop Keycloak, start the reviewed image, then run `scripts/sync_keycloak_redirects.sh` and `scripts/harden_keycloak.sh`. Recheck discovery, production profile, exact callback boundaries, privileged MFA state, and relying-application login entrypoints.
+5. A migrated Keycloak database is not safely rolled back by selecting the old image. To roll back, stop Keycloak and restore both the pre-upgrade database and its matching configuration before starting the previous pinned image.
+
 ### Step 5: Optional env switching workflow
 
 1. If you prefer using plain `docker compose` without `--env-file`, you can activate production env into `.env`:
@@ -333,13 +344,25 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
 ### Keycloak and SSO
 
 1. `./scripts/sync_keycloak_redirects.sh <env-file>`
-   Sync Keycloak client redirect URIs/web origins for NetBird, portal, Guacamole, BookStack, osTicket, EspoCRM, OrangeHRM, ERPNext, Seafile, and Penpot.
-2. `./scripts/check_osticket_keycloak.sh`
+   Sync exact HTTPS Keycloak client redirect URIs/web origins for NetBird, portal, Guacamole, BookStack, osTicket, EspoCRM, Frappe HR/ERPNext, Seafile, and Penpot. It also disables the retired OrangeHRM client when present and reconciles the `support-admin` role/group, the `employees` group, the portal `groups` claim mapper, and client-specific login gates without assigning users.
+2. `./scripts/harden_keycloak.sh <env-file>`
+   Apply approved brute-force protection, group-scoped TOTP for `platform-admin`, `support-engineer`, and `support-admin`, the `employees` exception, and delegated `platform-admin` controls idempotently.
+3. `./scripts/check_osticket_keycloak.sh`
    Preflight check for osTicket OAuth2 plugin and Keycloak endpoint reachability.
-3. `./scripts/install_osticket_oauth2_plugin.sh`
+4. `./scripts/install_osticket_oauth2_plugin.sh`
    Install osTicket OAuth2 plugin files into the expected path.
-4. `./scripts/configure_seafile_csrf.sh <env-file>`
-   Idempotently sets Seafile `SERVICE_URL`, `FILE_SERVER_ROOT`, and `CSRF_TRUSTED_ORIGINS`.
+5. `./scripts/bootstrap_osticket_provisioning.sh <env-file>`
+   Back up osTicket, validate the pinned schema, and create or validate the
+   least-privilege `Support Agent` role before enabling agent provisioning.
+6. `./scripts/configure_seafile_csrf.sh <env-file>`
+   Recovery helper for Seafile URL/CSRF values. Normal deployments use the
+   idempotent container startup hook, which also configures Keycloak OAuth.
+7. `./scripts/bootstrap_netbird_provisioning.sh <env-file>`
+   Create or reuse the dedicated NetBird provisioning service user and generate an
+   expiring PAT in the selected environment file.
+8. `./scripts/configure_netbird_oidc.sh <env-file>`
+   Reconcile NetBird's Keycloak identity provider, restricted JWT group sync, and
+   user-approval setting through the supported API.
 
 ### Certificates and TLS
 
@@ -356,6 +379,7 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
    Grant Guacamole administrator permissions to an existing Keycloak/OIDC identity. The username must exactly match the Keycloak `preferred_username` claim.
 3. `./scripts/post_seed_vaultwarden_org.sh`
    Post-seed helper for Vaultwarden organization setup.
+   See `docs/vaultwarden_operations.md` for approved sharing, recovery, offboarding, backup, and update instructions.
 4. `./scripts/seed_uptime_kuma_monitors.sh <env-file>`
    Seed Uptime Kuma monitors for stack services.
 ### Production validation

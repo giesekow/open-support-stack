@@ -1,0 +1,116 @@
+Evidence ID: VW-E01
+Captured UTC: 2026-09-25T21:27:26Z
+Executed entry command: `ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/capture_vaultwarden_validation_state.sh .env > /tmp/VW-E01-security-state.txt 2>&1'`
+Evidence script: `scripts/capture_vaultwarden_validation_state.sh`
+Evidence script SHA-256: `7f34751d7fd8c9d60952f60c15a74f67fa97cdd18bb333f01bdccc2a80543978`
+Result: PASSED
+Environment: production Vaultwarden service
+Redaction: administrative token, SMTP identity/password, vault data, account identifiers, and host paths are excluded.
+
+$ docker exec support-vaultwarden /vaultwarden --version
+Vaultwarden 1.37.2
+Web-Vault 2026.7.0
+
+$ docker inspect support-vaultwarden --format '{{.Config.Image}}'
+vaultwarden/server:1.37.2
+
+$ docker port support-vaultwarden
+<no host-published ports>
+
+$ docker inspect support-vaultwarden --format '{{range .Mounts}}{{.Type}} {{.Name}} -> {{.Destination}} rw={{.RW}}{{println}}{{end}}'
+volume open-support-stack_vaultwarden-data -> /data rw=true
+
+
+$ docker inspect support-vaultwarden --format '{{json .Config.Env}}' | verify selected controls without printing secrets
+DOMAIN=https://vault.internal-support.bonescreen.de
+SIGNUPS_ALLOWED=false
+INVITATIONS_ALLOWED=true
+ADMIN_TOKEN_CONFIGURED=true
+ADMIN_TOKEN_ARGON2ID=true
+SMTP_HOST_CONFIGURED=true
+SMTP_USERNAME_CONFIGURED=true
+SMTP_PASSWORD_CONFIGURED=true
+SMTP_FROM_CONFIGURED=true
+
+$ stat -c '%a %U:%G <ENV_FILE>' <ENV_FILE>
+600 administrator:administrator <ENV_FILE>
+
+$ curl -fsS https://vault.internal-support.bonescreen.de/api/config | python3 -c 'print selected public configuration fields as JSON'
+{
+  "environment": {
+    "api": "https://vault.internal-support.bonescreen.de/api",
+    "identity": "https://vault.internal-support.bonescreen.de/identity",
+    "notifications": "https://vault.internal-support.bonescreen.de/notifications",
+    "vault": "https://vault.internal-support.bonescreen.de"
+  },
+  "server": {
+    "name": "Vaultwarden"
+  },
+  "settings": {
+    "disableUserRegistration": true
+  }
+}
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/api/sync
+HTTP 401
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/data/db.sqlite3
+HTTP 404
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/db.sqlite3
+HTTP 404
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/config.json
+HTTP 404
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/admin/diagnostics
+HTTP 401
+
+$ curl -sS -D - -o /dev/null http://vault.internal-support.bonescreen.de/
+HTTP/1.0 503 Service Unavailable
+cache-control: no-cache
+content-type: text/html
+
+
+$ openssl s_client -connect vault.internal-support.bonescreen.de:443 -servername vault.internal-support.bonescreen.de -verify_return_error </dev/null 2>&1 | grep -E 'subject=|issuer=|Verification:|Verify return code'
+subject=CN = internal-support.bonescreen.de
+issuer=C = US, O = Let's Encrypt, CN = YR1
+Verification: OK
+Verify return code: 0 (ok)
+
+$ test -f docs/vaultwarden_operations.md
+Exit code: 0
+
+$ grep required operating topics in docs/vaultwarden_operations.md
+Do not place: documented
+Offboarding: documented
+synchronized to an offline: documented
+Backup and restore: documented
+Updates: documented
+Organization sharing: documented
+Recovery: documented
+Overall result: PASSED
+
+Post-capture cleanup
+--------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'rm -f /tmp/VW-E01-security-state.txt /tmp/VW-E02-backup-restore.txt && test ! -e /tmp/VW-E01-security-state.txt && test ! -e /tmp/VW-E02-backup-restore.txt && echo remote_transcript_files_remaining=0'
+remote_transcript_files_remaining=0
+
+SMTP connectivity supplement
+-----------------------------
+Captured UTC: 2026-09-25
+
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'docker exec support-vaultwarden sh -lc '\''timeout 15 openssl s_client -connect "$SMTP_HOST:$SMTP_PORT" -servername "$SMTP_HOST" -brief </dev/null 2>&1 | sed -n "1,12p"'\'''
+Connecting to 142.251.127.109
+CONNECTION ESTABLISHED
+Protocol version: TLSv1.3
+Ciphersuite: TLS_AES_256_GCM_SHA384
+Peer certificate: CN=smtp.gmail.com
+Verification: OK
+Negotiated TLS1.3 group: X25519MLKEM768
+DONE
+
+$ docker logs --since 7d support-vaultwarden 2>&1 | grep SMTP/mail/email warnings or errors
+<no matching warnings or errors>
+
+Result: SMTP endpoint connectivity and certificate verification PASSED. SMTP authentication and delivery remain covered by the pending controlled invitation test in VW-T01.

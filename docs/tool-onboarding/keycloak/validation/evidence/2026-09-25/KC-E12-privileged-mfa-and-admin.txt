@@ -1,0 +1,27 @@
+Evidence ID: KC-E12
+Captured UTC: 2026-09-25T19:26:15Z
+Environment: production support realm
+
+Interactive test confirmation:
+- Privileged user completed required TOTP enrollment.
+- Sign-out and fresh sign-in required the second factor.
+- Missing OTP could not proceed.
+- Incorrect OTP was rejected.
+- Correct OTP completed authentication.
+- The delegated Support realm administration console opened successfully.
+- Master realm access and user impersonation were unavailable.
+
+Server-side verification (identity excluded):
+- platform-admin: 1 member, 1 OTP credential, 0 pending CONFIGURE_TOTP actions
+- support-engineer: 1 member, 1 OTP credential, 0 pending CONFIGURE_TOTP actions
+- Both groups contain the same single privileged user.
+- Delegated realm-management role count: 11
+- realm-admin assigned: false
+- impersonation assigned: false
+
+Conclusion: privileged MFA and named delegated-administrator positive/negative checks passed. KC-DEV-001 and KC-DEV-004 may be closed. No username, OTP seed, recovery code, password, token, or personal identifier is retained.
+
+Command-level and interactive evidence
+--------------------------------------
+- The MFA and delegated-console checks above are browser interactions, so no CLI command exists for the user-entered OTP outcomes. The user confirmed every listed step passed at the captured UTC time; tester and reviewer signature fields remain in the protocol completion table.
+- Server-side group membership, OTP-credential counts, pending required-action counts, delegated roles, and explicit absence of realm-admin and impersonation are recorded with commands and responses in KC-E13-current-state-command-transcript.txt.

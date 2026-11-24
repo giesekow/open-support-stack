@@ -1,0 +1,32 @@
+Evidence ID: KC-E10
+Captured UTC: 2026-09-25T18:53:00Z to 2026-09-25T19:08:00Z
+Environment: production support realm
+
+Realm and privileged-access controls:
+- Brute-force protection enabled: true
+- Failure factor: 5
+- CONFIGURE_TOTP enabled as default required action: true
+- platform-admin: 1 member, CONFIGURE_TOTP pending for 1, OTP credentials 0
+- support-engineer: 1 member, CONFIGURE_TOTP pending for 1, OTP credentials 0
+- platform-admin delegated realm-management roles: 11
+- Hardening script second execution added no duplicate roles or required actions.
+
+Brute-force revalidation with automatically removed synthetic data:
+- Valid-password baseline: HTTP 200
+- Five invalid-password attempts: HTTP 400 each
+- Attack-detection state after threshold: disabled=true
+- Correct password while locked: HTTP 400
+- Correct password after administrative unlock: HTTP 200
+- Remaining synthetic users: 0
+- Remaining synthetic clients: 0
+
+Conclusion:
+- KC-DEV-002 is remediated and revalidated.
+- MFA enrollment is enforced as a required action, but KC-DEV-001 and KC-DEV-004 remain open until privileged users enroll OTP and a named delegated administrator completes the interactive positive/negative administration test.
+- No username, password, token, OTP seed, or personal identifier is retained.
+
+Command-level evidence
+----------------------
+- Current realm, TOTP, privileged-group, delegated-role, runtime, and service commands with responses: `KC-E13-current-state-command-transcript.txt`.
+- Brute-force baseline, failure sequence, lock state, locked denial, unlock recovery, and cleanup commands with responses: `KC-E14-brute-force-command-transcript.txt`.
+- The original remediation summary did not retain its complete command transcript; the controls were rerun safely using fresh synthetic objects rather than reconstructing historical output.

@@ -13,7 +13,7 @@ class DomainTests(unittest.TestCase):
             "schedule_time": "08:00",
             "start_offset_days": 0,
             "period_days": 7,
-            "statuses": [2, 3],
+            "statuses": ["Approved"],
             "recipients": ["ops@example.com"],
             "subject": "Summary {{ count }}",
             "text_template": "{{ period_label }}: {{ absences[0].employee_name }}",
@@ -31,7 +31,13 @@ class DomainTests(unittest.TestCase):
     def test_validate_rule_normalizes_time_and_statuses(self):
         result = validate_rule(self.base_rule())
         self.assertEqual(result["schedule_time"], time(8, 0))
-        self.assertEqual(result["statuses"], [2, 3])
+        self.assertEqual(result["statuses"], ["Approved"])
+
+    def test_validate_rule_migrates_legacy_orangehrm_statuses(self):
+        data = self.base_rule()
+        data["statuses"] = [2, 3]
+        result = validate_rule(data)
+        self.assertEqual(result["statuses"], ["Approved"])
 
     def test_invalid_email_is_rejected(self):
         data = self.base_rule()
@@ -54,4 +60,3 @@ class DomainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

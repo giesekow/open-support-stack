@@ -18,6 +18,7 @@ env_get() {
 }
 
 ERP_HOST="$(env_get ERP_HOST "erp.example.com")"
+ERPNEXT_SITE_NAME="$(env_get ERPNEXT_SITE_NAME "$ERP_HOST")"
 SSO_HOST="$(env_get SSO_HOST "sso.example.com")"
 KEYCLOAK_REALM="$(env_get KEYCLOAK_REALM "support")"
 CLIENT_ID="$(env_get ERPNEXT_OIDC_CLIENT_ID "erpnext")"
@@ -30,13 +31,14 @@ fi
 
 docker compose --env-file "$ENV_FILE" exec -T \
   -e ERP_HOST="$ERP_HOST" \
+  -e ERPNEXT_SITE_NAME="$ERPNEXT_SITE_NAME" \
   -e SSO_HOST="$SSO_HOST" \
   -e KEYCLOAK_REALM="$KEYCLOAK_REALM" \
   -e ERPNEXT_OIDC_CLIENT_ID="$CLIENT_ID" \
   -e ERPNEXT_OIDC_CLIENT_SECRET="$CLIENT_SECRET" \
   erpnext-backend sh -lc '
     cd /home/frappe/frappe-bench
-    bench --site "$ERP_HOST" console
+    bench --site "$ERPNEXT_SITE_NAME" console
   ' <<'PY'
 import json
 import os
@@ -64,7 +66,9 @@ provider.authorize_url = f"{public_base}/protocol/openid-connect/auth"
 provider.access_token_url = f"{internal_base}/protocol/openid-connect/token"
 provider.api_endpoint = f"{internal_base}/protocol/openid-connect/userinfo"
 provider.redirect_url = "/api/method/frappe.integrations.oauth2_logins.login_via_keycloak"
-provider.user_id_property = "preferred_username"
+# Keycloak usernames are mutable. Persist the immutable OIDC subject so email or
+# username changes cannot transfer an ERPNext identity to another account.
+provider.user_id_property = "sub"
 provider.client_id = os.environ["ERPNEXT_OIDC_CLIENT_ID"]
 provider.client_secret = os.environ["ERPNEXT_OIDC_CLIENT_SECRET"]
 provider.enable_social_login = 1

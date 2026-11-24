@@ -25,9 +25,10 @@ from jinja2.sandbox import SandboxedEnvironment
 from pymysql.cursors import DictCursor
 
 
-LOG = logging.getLogger("orangehrm-leave-notifier")
+LOG = logging.getLogger("frappe-hr-leave-notifier")
 ENV_PATTERN = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
-STATUS_NAMES = {2: "Approved", 3: "Taken"}
+STATUS_NAMES = {"Approved": "Approved"}
+LEGACY_STATUSES = {2: "Approved", 3: "Approved", "2": "Approved", "3": "Approved"}
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
@@ -87,9 +88,13 @@ def load_config(path: str) -> dict[str, Any]:
         invalid_days = set(schedule.get("days", [])) - set(WEEKDAYS)
         if invalid_days:
             raise ValueError(f"Rule {rule_id} has invalid schedule days: {sorted(invalid_days)}")
-        statuses = rule.get("statuses", [2, 3])
-        if not statuses or set(statuses) - STATUS_NAMES.keys():
-            raise ValueError(f"Rule {rule_id} statuses must contain only 2 (approved) and/or 3 (taken)")
+        statuses = {
+            LEGACY_STATUSES.get(status, status)
+            for status in rule.get("statuses", ["Approved"])
+        }
+        if not statuses or statuses - STATUS_NAMES.keys():
+            raise ValueError(f"Rule {rule_id} statuses must contain only Approved")
+        rule["statuses"] = sorted(statuses)
         templates = rule.get("templates", {})
         if not templates.get("html") or not templates.get("text"):
             raise ValueError(f"Rule {rule_id} must define HTML and text templates")
@@ -143,11 +148,10 @@ class DeliveryLedger:
 
 def database_connection() -> pymysql.Connection:
     connection = pymysql.connect(
-        host=env("ORANGEHRM_DB_HOST", "orangehrm-db"),
-        port=int(env("ORANGEHRM_DB_PORT", "3306")),
-        user=env("ORANGEHRM_DB_USER", required=True),
-        password=env("ORANGEHRM_DB_PASSWORD", required=True),
-        database=env("ORANGEHRM_DB_NAME", required=True),
+        host=env("FRAPPE_HR_DB_HOST", "erpnext-db"),
+        port=int(env("FRAPPE_HR_DB_PORT", "3306")),
+        user=env("FRAPPE_HR_DB_USER", required=True),
+        password=env("FRAPPE_HR_DB_PASSWORD", required=True),
         charset="utf8mb4",
         cursorclass=DictCursor,
         connect_timeout=10,
@@ -156,49 +160,98 @@ def database_connection() -> pymysql.Connection:
         autocommit=True,
     )
     with connection.cursor() as cursor:
+        configured_database = env("FRAPPE_HR_DB_NAME", "").strip()
+        if configured_database:
+            database_name = configured_database
+        else:
+            cursor.execute(
+                """
+                SELECT TABLE_SCHEMA
+                FROM information_schema.TABLES
+                WHERE TABLE_NAME IN ('tabEmployee', 'tabLeave Application')
+                GROUP BY TABLE_SCHEMA
+                HAVING COUNT(DISTINCT TABLE_NAME) = 2
+                """
+            )
+            schemas = [row["TABLE_SCHEMA"] for row in cursor.fetchall()]
+            if len(schemas) != 1:
+                raise RuntimeError(
+                    "Expected one readable Frappe HR database; "
+                    f"found {len(schemas)}"
+                )
+            database_name = schemas[0]
+        connection.select_db(database_name)
         cursor.execute("SET SESSION TRANSACTION READ ONLY")
     return connection
 
 
-def fetch_absences(period: Period, statuses: list[int]) -> list[dict[str, Any]]:
+def fetch_absences(period: Period, statuses: list[str]) -> list[dict[str, Any]]:
     placeholders = ", ".join(["%s"] * len(statuses))
     query = f"""
         SELECT
-            l.date AS leave_date,
+            l.name AS leave_application,
+            l.from_date,
+            l.to_date,
             l.status,
-            l.length_days,
-            l.start_time,
-            l.end_time,
-            e.employee_id,
-            e.emp_firstname,
-            e.emp_middle_name,
-            e.emp_lastname,
-            e.emp_work_email,
-            lt.name AS leave_type,
-            su.name AS subunit,
-            GROUP_CONCAT(DISTINCT loc.name ORDER BY loc.name SEPARATOR ', ') AS locations
-        FROM ohrm_leave l
-        JOIN hs_hr_employee e ON e.emp_number = l.emp_number
-        JOIN ohrm_leave_type lt ON lt.id = l.leave_type_id
-        LEFT JOIN ohrm_subunit su ON su.id = e.work_station
-        LEFT JOIN hs_hr_emp_locations el ON el.emp_number = e.emp_number
-        LEFT JOIN ohrm_location loc ON loc.id = el.location_id
-        WHERE l.date BETWEEN %s AND %s
+            l.total_leave_days,
+            l.half_day,
+            l.half_day_date,
+            lt.include_holiday,
+            COALESCE(NULLIF(e.holiday_list, ''), NULLIF(c.default_holiday_list, '')) AS holiday_list,
+            (
+                SELECT GROUP_CONCAT(DATE_FORMAT(h.holiday_date, '%%Y-%%m-%%d')
+                                    ORDER BY h.holiday_date SEPARATOR ',')
+                FROM `tabHoliday` h
+                WHERE h.parent = COALESCE(NULLIF(e.holiday_list, ''), NULLIF(c.default_holiday_list, ''))
+                  AND h.holiday_date BETWEEN %s AND %s
+            ) AS holiday_dates,
+            e.name AS employee_id,
+            e.employee_name,
+            COALESCE(NULLIF(e.company_email, ''), NULLIF(e.prefered_email, ''),
+                     NULLIF(e.personal_email, ''), NULLIF(e.user_id, '')) AS employee_email,
+            l.leave_type,
+            COALESCE(NULLIF(e.department, ''), '-') AS subunit,
+            COALESCE(NULLIF(e.branch, ''), '-') AS locations
+        FROM `tabLeave Application` l
+        JOIN `tabEmployee` e ON e.name = l.employee
+        JOIN `tabLeave Type` lt ON lt.name = l.leave_type
+        LEFT JOIN `tabCompany` c ON c.name = e.company
+        WHERE l.from_date <= %s
+          AND l.to_date >= %s
+          AND l.docstatus = 1
           AND l.status IN ({placeholders})
-          AND e.termination_id IS NULL
-          AND e.purged_at IS NULL
-          AND lt.deleted = 0
-        GROUP BY
-            l.id, l.date, l.status, l.length_days, l.start_time, l.end_time,
-            e.employee_id, e.emp_firstname, e.emp_middle_name, e.emp_lastname,
-            e.emp_work_email, lt.name, su.name
-        ORDER BY l.date, e.emp_lastname, e.emp_firstname
+          AND e.status = 'Active'
+        ORDER BY l.from_date, e.employee_name, l.name
     """
-    params: list[Any] = [period.start, period.end, *statuses]
+    params: list[Any] = [period.start, period.end, period.end, period.start, *statuses]
     with database_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
-            return list(cursor.fetchall())
+            return expand_absence_rows(list(cursor.fetchall()), period)
+
+
+def expand_absence_rows(rows: list[dict[str, Any]], period: Period) -> list[dict[str, Any]]:
+    expanded: list[dict[str, Any]] = []
+    for row in rows:
+        current = max(row["from_date"], period.start)
+        final = min(row["to_date"], period.end)
+        holidays = {
+            date.fromisoformat(value)
+            for value in str(row.get("holiday_dates") or "").split(",")
+            if value
+        }
+        while current <= final:
+            if row.get("include_holiday") or current not in holidays:
+                item = dict(row)
+                item["from_date"] = current
+                item["to_date"] = current
+                item["total_leave_days"] = (
+                    0.5 if row.get("half_day") and row.get("half_day_date") == current else 1.0
+                )
+                item.pop("holiday_dates", None)
+                expanded.append(item)
+            current += timedelta(days=1)
+    return expanded
 
 
 def normalized_set(values: list[str]) -> set[str]:
@@ -217,24 +270,18 @@ def filter_absences(rows: list[dict[str, Any]], filters: dict[str, Any]) -> list
         row_locations = normalized_set((row.get("locations") or "").split(","))
         if locations and not locations.intersection(row_locations):
             continue
-        if employee_emails and (row.get("emp_work_email") or "").casefold() not in employee_emails:
+        if employee_emails and (row.get("employee_email") or "").casefold() not in employee_emails:
             continue
         filtered.append(row)
     return filtered
 
 
 def employee_name(row: dict[str, Any]) -> str:
-    return " ".join(
-        part.strip()
-        for part in (row.get("emp_firstname"), row.get("emp_middle_name"), row.get("emp_lastname"))
-        if part and part.strip()
-    )
+    return str(row.get("employee_name") or row.get("employee_id") or "")
 
 
 def duration(row: dict[str, Any]) -> str:
-    if row.get("start_time") is not None and row.get("end_time") is not None:
-        return f"{row['start_time']} - {row['end_time']}"
-    days = float(row.get("length_days") or 0)
+    days = float(row.get("total_leave_days") or 0)
     return f"{days:g} day" + ("" if days == 1 else "s")
 
 
@@ -286,19 +333,24 @@ def template_context(
     absences = []
     for row in rows:
         locations = [item.strip() for item in (row.get("locations") or "").split(",") if item.strip()]
+        from_date = row["from_date"]
+        to_date = row["to_date"]
+        date_label = from_date.strftime("%d %b %Y")
+        if to_date != from_date:
+            date_label += f" - {to_date.strftime('%d %b %Y')}"
         absences.append(
             {
-                "date": row["leave_date"].isoformat(),
-                "date_label": row["leave_date"].strftime("%d %b %Y"),
+                "date": from_date.isoformat(),
+                "date_label": date_label,
                 "employee_id": row.get("employee_id") or "",
                 "employee_name": employee_name(row),
-                "employee_email": row.get("emp_work_email") or "",
+                "employee_email": row.get("employee_email") or "",
                 "type_label": str(row["leave_type"]) if rule.get("include_leave_type", False) else "Leave",
                 "duration": duration(row),
                 "subunit": row.get("subunit") or "-",
                 "locations": locations,
                 "locations_label": ", ".join(locations) if locations else "-",
-                "status": STATUS_NAMES.get(int(row["status"]), str(row["status"])),
+                "status": STATUS_NAMES.get(str(row["status"]), str(row["status"])),
             }
         )
     return {
@@ -313,17 +365,17 @@ def template_context(
 
 def send_email(recipients: list[str], subject: str, text_body: str, html_body: str) -> None:
     message = EmailMessage()
-    message["From"] = env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_FROM", required=True)
+    message["From"] = env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_FROM", required=True)
     message["To"] = ", ".join(recipients)
     message["Subject"] = subject
     message.set_content(text_body)
     message.add_alternative(html_body, subtype="html")
 
-    host = env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_HOST", required=True)
-    port = int(env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_PORT", "587"))
-    security = env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_SECURITY", "starttls").lower()
-    username = env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_USERNAME")
-    password = env("ORANGEHRM_LEAVE_NOTIFIER_SMTP_PASSWORD")
+    host = env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_HOST", required=True)
+    port = int(env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_PORT", "587"))
+    security = env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_SECURITY", "starttls").lower()
+    username = env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_USERNAME")
+    password = env("FRAPPE_HR_LEAVE_NOTIFIER_SMTP_PASSWORD")
     context = ssl.create_default_context()
 
     if security in {"tls", "force_tls"}:
@@ -374,7 +426,7 @@ def run_rule(
         LOG.info("Skipping rule %s: already delivered for %s", rule["id"], run_date)
         return False
 
-    rows = filter_absences(fetch_absences(period, rule.get("statuses", [2, 3])), rule.get("filters", {}))
+    rows = filter_absences(fetch_absences(period, rule.get("statuses", ["Approved"])), rule.get("filters", {}))
     send_empty = send_empty_override or rule.get("send_when_empty", False)
     if not rows and not send_empty:
         LOG.info("Rule %s found no matching absences; no email sent", rule["id"])
@@ -395,7 +447,7 @@ def run_rule(
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Send scheduled OrangeHRM leave summaries")
+    parser = argparse.ArgumentParser(description="Send scheduled Frappe HR leave summaries")
     parser.add_argument("--once", action="store_true", help="Check due rules once and exit")
     parser.add_argument("--run-now", action="store_true", help="Run selected enabled rules regardless of schedule")
     parser.add_argument("--rule", action="append", default=[], help="Limit execution to a rule id; may be repeated")
@@ -452,9 +504,9 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(message)s",
     )
     args = parse_arguments()
-    config_path = env("ORANGEHRM_LEAVE_NOTIFIER_CONFIG", "/config/leave-notifications.json")
-    template_directory = env("ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR", "/config/templates")
-    ledger = DeliveryLedger(env("ORANGEHRM_LEAVE_NOTIFIER_LEDGER", "/data/deliveries.sqlite3"))
+    config_path = env("FRAPPE_HR_LEAVE_NOTIFIER_CONFIG", "/config/leave-notifications.json")
+    template_directory = env("FRAPPE_HR_LEAVE_NOTIFIER_TEMPLATE_DIR", "/config/templates")
+    ledger = DeliveryLedger(env("FRAPPE_HR_LEAVE_NOTIFIER_LEDGER", "/data/deliveries.sqlite3"))
 
     def load_runtime() -> tuple[dict[str, Any], ZoneInfo, TemplateRenderer]:
         config = load_config(config_path)
@@ -465,7 +517,7 @@ def main() -> int:
         config, timezone, renderer = load_runtime()
         return execute(config, ledger, renderer, args, datetime.now(timezone))
 
-    interval = max(15, int(env("ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS", "60")))
+    interval = max(15, int(env("FRAPPE_HR_LEAVE_NOTIFIER_INTERVAL_SECONDS", "60")))
     LOG.info("Scheduler started; configuration reload interval is %d seconds", interval)
     while True:
         try:

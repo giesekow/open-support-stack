@@ -33,14 +33,46 @@ class NotifierTests(unittest.TestCase):
 
     def test_filters_match_subunit_location_and_email(self):
         rows = [
-            {"subunit": "Support", "locations": "Berlin, Hamburg", "emp_work_email": "one@example.com"},
-            {"subunit": "Finance", "locations": "Berlin", "emp_work_email": "two@example.com"},
+            {"subunit": "Support", "locations": "Berlin, Hamburg", "employee_email": "one@example.com"},
+            {"subunit": "Finance", "locations": "Berlin", "employee_email": "two@example.com"},
         ]
         result = notifier.filter_absences(
             rows,
             {"subunits": ["support"], "locations": ["hamburg"], "employee_emails": ["ONE@example.com"]},
         )
         self.assertEqual(result, rows[:1])
+
+    def test_multi_day_leave_is_clipped_and_excludes_holidays(self):
+        rows = [{
+            "from_date": date(2026, 9, 18),
+            "to_date": date(2026, 9, 23),
+            "half_day": 1,
+            "half_day_date": date(2026, 9, 22),
+            "include_holiday": 0,
+            "holiday_dates": "2026-09-20,2026-09-21",
+        }]
+        expanded = notifier.expand_absence_rows(
+            rows,
+            notifier.Period(date(2026, 9, 20), date(2026, 9, 22)),
+        )
+        self.assertEqual([row["from_date"] for row in expanded], [date(2026, 9, 22)])
+        self.assertEqual(expanded[0]["total_leave_days"], 0.5)
+
+    def test_leave_type_can_include_holidays(self):
+        rows = [{
+            "from_date": date(2026, 9, 20),
+            "to_date": date(2026, 9, 21),
+            "half_day": 0,
+            "half_day_date": None,
+            "include_holiday": 1,
+            "holiday_dates": "2026-09-20,2026-09-21",
+        }]
+        expanded = notifier.expand_absence_rows(
+            rows,
+            notifier.Period(date(2026, 9, 20), date(2026, 9, 21)),
+        )
+        self.assertEqual(len(expanded), 2)
+        self.assertEqual([row["total_leave_days"] for row in expanded], [1.0, 1.0])
 
     def test_delivery_ledger_prevents_duplicate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -65,16 +97,13 @@ class NotifierTests(unittest.TestCase):
                 "include_leave_type": False,
             }
             rows = [{
-                "leave_date": date(2026, 9, 19),
-                "status": 2,
-                "length_days": 1,
-                "start_time": None,
-                "end_time": None,
+                "from_date": date(2026, 9, 19),
+                "to_date": date(2026, 9, 19),
+                "status": "Approved",
+                "total_leave_days": 1,
                 "employee_id": "EMP-1",
-                "emp_firstname": "<Alex>",
-                "emp_middle_name": "",
-                "emp_lastname": "Example",
-                "emp_work_email": "alex@example.com",
+                "employee_name": "<Alex> Example",
+                "employee_email": "alex@example.com",
                 "leave_type": "Sensitive leave",
                 "subunit": "Support",
                 "locations": "Berlin",
@@ -89,6 +118,17 @@ class NotifierTests(unittest.TestCase):
             self.assertIn("<Alex> Example", text_body)
             self.assertIn("&lt;Alex&gt; Example", html_body)
             self.assertNotIn("Sensitive leave", str(notifier.template_context(rule, notifier.Period(date(2026, 9, 19), date(2026, 9, 19)), rows, datetime.now())))
+
+    def test_legacy_statuses_are_migrated_to_approved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory, "rules.json")
+            config.write_text(
+                '{"rules":[{"id":"daily-summary","recipients":["hr@example.com"],'
+                '"schedule":{"days":["mon"],"time":"08:00"},"statuses":[2,3],'
+                '"templates":{"html":"summary.html.j2","text":"summary.txt.j2"}}]}'
+            )
+            loaded = notifier.load_config(str(config))
+            self.assertEqual(loaded["rules"][0]["statuses"], ["Approved"])
 
 
 if __name__ == "__main__":

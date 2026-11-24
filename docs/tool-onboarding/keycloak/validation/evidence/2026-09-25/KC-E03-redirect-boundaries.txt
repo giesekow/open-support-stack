@@ -1,0 +1,22 @@
+Evidence ID: KC-E03-redirect-boundaries
+Captured UTC: 2026-09-25T15:53:00Z
+Environment: production support realm
+
+Dedicated exact-match client:
+- Approved redirect: HTTP 200 login response
+- Modified host: HTTP 400
+- Modified scheme: HTTP 400
+- Modified port: HTTP 400
+- Modified path: HTTP 400
+
+Operational client audit (client IDs only):
+- Plain-HTTP redirect/origin configured: erpnext, orangehrm
+- Wildcard redirect/origin configured: account, account-console, bookstack, erpnext, espocrm, guacamole, netbird, orangehrm, osticket, penpot, seafile, security-admin-console
+
+Conclusion: exact-match enforcement works when configured, but the production application-client baseline does not yet meet the requirement for exact HTTPS-only endpoints.
+
+Command-level evidence
+----------------------
+- The complete transcript for the historical pre-remediation callback inventory was not retained and is not reconstructed.
+- Current exact redirect/origin inventory and positive/altered callback commands with HTTP responses are recorded in KC-E13-current-state-command-transcript.txt.
+- Secret-rotation boundary commands with responses and cleanup proof are recorded in KC-E02-oidc-control-tests.txt.

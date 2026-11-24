@@ -1,0 +1,370 @@
+Evidence ID: KC-E13-current-state-command-transcript
+Captured UTC: 2026-09-25T19:48:08Z
+Environment: production support stack
+Result: PASSED
+
+Purpose
+-------
+Command-level supplemental evidence for KC-E00, KC-E01, KC-E01b, KC-E01c, KC-E03, KC-E04, KC-E06, KC-E09, KC-E10, KC-E11, and KC-E12. Historical summaries remain unchanged, while this record provides current-state revalidation with complete commands and actual sanitized responses.
+
+Executed entry command
+----------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/capture_keycloak_validation_state.sh .env'
+
+Reusable script
+---------------
+Path: scripts/capture_keycloak_validation_state.sh
+SHA-256: 7067ac06d2f60400cc220361fd13ac13b839370b36158a35339bdd974bf47287
+
+Sanitized command and response transcript
+-----------------------------------------
+Evidence execution UTC: 2026-09-25T19:48:08Z
+Environment: production support stack
+Redaction: administrator credential, generated IDs, usernames, emails, tokens, and secrets are excluded or replaced.
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak kcadm.sh config credentials --server http://localhost:8080 --realm master --user <ADMIN_USER> --password <REDACTED>
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+Exit code: 0
+
+=== Runtime baseline ===
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak /opt/keycloak/bin/kc.sh --version
+Keycloak 26.7.4
+JVM: 21.0.12.1 (Red Hat, Inc. OpenJDK 64-Bit Server VM 21.0.12.1+1-LTS)
+OS: Linux 5.15.0-179-generic amd64
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak-db postgres --version
+postgres (PostgreSQL) 16.14 (Debian 16.14-1.pgdg13+1)
+
+$ docker inspect support-keycloak --format '{{.Config.Image}}'
+quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+
+$ docker inspect support-keycloak --format '{{json .Config.Cmd}}'
+["start","--import-realm","--http-enabled=true","--proxy-headers=xforwarded","--hostname=https://sso.internal-support.bonescreen.de","--hostname-strict=true"]
+
+$ docker port support-keycloak
+<no host-published ports>
+
+$ docker logs support-keycloak 2>&1 | grep -E 'Profile .* activated|Running the server in development mode' | tail -n 5
+2026-09-25 18:52:26,250 INFO  [io.quarkus] (main) Profile prod activated.
+
+$ docker compose --env-file <ENV_FILE> ps keycloak keycloak-db orangehrm orangehrm-db
+NAME                   IMAGE                                                                                               COMMAND                  SERVICE        CREATED          STATUS          PORTS
+support-keycloak       quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c   "/opt/keycloak/bin/k…"   keycloak       55 minutes ago   Up 55 minutes   8080/tcp, 8443/tcp, 9000/tcp
+support-keycloak-db    postgres:16                                                                                         "docker-entrypoint.s…"   keycloak-db    10 days ago      Up 10 days      5432/tcp
+support-orangehrm      orangehrm/orangehrm:5.8.1                                                                           "docker-php-entrypoi…"   orangehrm      44 minutes ago   Up 44 minutes   80/tcp
+support-orangehrm-db   mariadb:11.4                                                                                        "docker-entrypoint.s…"   orangehrm-db   10 days ago      Up 10 days      3306/tcp
+
+=== Realm security controls ===
+
+$ kcadm.sh get realms/support --fields realm,defaultSignatureAlgorithm,accessTokenLifespan,ssoSessionIdleTimeout,ssoSessionMaxLifespan,offlineSessionIdleTimeout,enabled,sslRequired,registrationAllowed,rememberMe,verifyEmail,bruteForceProtected,failureFactor
+{
+  "realm" : "support",
+  "defaultSignatureAlgorithm" : "RS256",
+  "accessTokenLifespan" : 300,
+  "ssoSessionIdleTimeout" : 1800,
+  "ssoSessionMaxLifespan" : 36000,
+  "offlineSessionIdleTimeout" : 2592000,
+  "enabled" : true,
+  "sslRequired" : "external",
+  "registrationAllowed" : false,
+  "rememberMe" : true,
+  "verifyEmail" : false,
+  "bruteForceProtected" : true,
+  "failureFactor" : 5
+}
+$ kcadm.sh get authentication/required-actions/CONFIGURE_TOTP -r support --fields alias,enabled,defaultAction
+
+{
+  "alias" : "CONFIGURE_TOTP",
+  "enabled" : true,
+  "defaultAction" : true
+}
+
+=== Authentication flow ===
+
+$ kcadm.sh get realms/support --fields browserFlow,directGrantFlow,resetCredentialsFlow,clientAuthenticationFlow
+{
+  "browserFlow" : "browser",
+  "directGrantFlow" : "direct grant",
+  "resetCredentialsFlow" : "reset credentials",
+  "clientAuthenticationFlow" : "clients"
+}
+$ kcadm.sh get authentication/flows/browser/executions -r support --fields requirement,displayName,providerId,authenticationFlow,level,index
+
+[ {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Cookie",
+  "providerId" : "auth-cookie",
+  "level" : 0,
+  "index" : 0
+}, {
+  "requirement" : "DISABLED",
+  "displayName" : "Kerberos",
+  "providerId" : "auth-spnego",
+  "level" : 0,
+  "index" : 1
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Identity Provider Redirector",
+  "providerId" : "identity-provider-redirector",
+  "level" : 0,
+  "index" : 2
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Organization",
+  "authenticationFlow" : true,
+  "level" : 0,
+  "index" : 3
+}, {
+  "requirement" : "CONDITIONAL",
+  "displayName" : "Browser - Conditional Organization",
+  "authenticationFlow" : true,
+  "level" : 1,
+  "index" : 0
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "Condition - user configured",
+  "providerId" : "conditional-user-configured",
+  "level" : 2,
+  "index" : 0
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Organization Identity-First Login",
+  "providerId" : "organization",
+  "level" : 2,
+  "index" : 1
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "forms",
+  "authenticationFlow" : true,
+  "level" : 0,
+  "index" : 4
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "Username Password Form",
+  "providerId" : "auth-username-password-form",
+  "level" : 1,
+  "index" : 0
+}, {
+  "requirement" : "CONDITIONAL",
+  "displayName" : "Browser - Conditional OTP",
+  "authenticationFlow" : true,
+  "level" : 1,
+  "index" : 1
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "Condition - user configured",
+  "providerId" : "conditional-user-configured",
+  "level" : 2,
+  "index" : 0
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "OTP Form",
+  "providerId" : "auth-otp-form",
+  "level" : 2,
+  "index" : 1
+} ]
+
+=== Privileged MFA and delegated roles ===
+
+$ kcadm.sh get groups -r support --fields id,name
+
+Response group names: auditor, platform-admin, support-engineer
+
+$ kcadm.sh get groups/<PLATFORM-ADMIN_GROUP_ID>/members -r support --fields id,enabled,requiredActions
+
+platform-admin_members=1
+platform-admin_enabled=1
+platform-admin_totp_actions_pending=0
+
+$ kcadm.sh get users/<USER_ID>/credentials -r support --fields type
+
+platform-admin_otp_credentials=1
+
+$ kcadm.sh get groups/<SUPPORT-ENGINEER_GROUP_ID>/members -r support --fields id,enabled,requiredActions
+
+support-engineer_members=1
+support-engineer_enabled=1
+support-engineer_totp_actions_pending=0
+
+$ kcadm.sh get users/<USER_ID>/credentials -r support --fields type
+
+support-engineer_otp_credentials=1
+
+
+$ kcadm.sh get groups/<PLATFORM_ADMIN_GROUP_ID>/role-mappings/clients/<REALM_MANAGEMENT_CLIENT_ID> -r support --fields name
+delegated_role_count=11
+delegated_roles=manage-clients,manage-events,manage-realm,manage-users,query-clients,query-groups,query-users,view-clients,view-events,view-realm,view-users
+realm_admin_assigned=false
+impersonation_assigned=false
+
+=== Clock and session baseline ===
+
+$ timedatectl show --property=NTPSynchronized --value
+
+yes
+
+$ host_epoch=$(date -u +%s); container_epoch=$(docker exec support-keycloak date -u +%s); echo host_epoch=<VALUE> container_epoch=<VALUE> delta_seconds=<VALUE>
+host_epoch=1790365700 container_epoch=1790365700 delta_seconds=0
+
+=== Public exposure and TLS ===
+
+$ curl -fsS https://sso.internal-support.bonescreen.de/realms/support/.well-known/openid-configuration | python3 -c 'import json,sys; x=json.load(sys.stdin); [print(f"{k}={x[k]}") for k in ("issuer","authorization_endpoint","token_endpoint","jwks_uri")]'
+issuer=https://sso.internal-support.bonescreen.de/realms/support
+authorization_endpoint=https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth
+token_endpoint=https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token
+jwks_uri=https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/certs
+
+$ curl -sS -D - -o /dev/null http://sso.internal-support.bonescreen.de/realms/support/.well-known/openid-configuration
+HTTP/1.0 503 Service Unavailable
+cache-control: no-cache
+content-type: text/html
+
+
+$ openssl s_client -connect sso.internal-support.bonescreen.de:443 -servername sso.internal-support.bonescreen.de -verify_return_error </dev/null 2>&1 | grep -E 'subject=|issuer=|Verification:|Verify return code'
+subject=CN = internal-support.bonescreen.de
+issuer=C = US, O = Let's Encrypt, CN = YR1
+Verification: OK
+Verify return code: 0 (ok)
+
+=== Exact managed-client callbacks ===
+
+$ kcadm.sh get clients -r support -q clientId=support-portal --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "support-portal",
+  "redirectUris" : [ "https://internal-support.bonescreen.de/oauth2/callback" ],
+  "webOrigins" : [ "https://internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=guacamole --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "guacamole",
+  "redirectUris" : [ "https://remote.internal-support.bonescreen.de/guacamole/" ],
+  "webOrigins" : [ "https://remote.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=bookstack --fields clientId,redirectUris,webOrigins
+[ {
+  "clientId" : "bookstack",
+  "redirectUris" : [ "https://docs.internal-support.bonescreen.de/oidc/callback" ],
+  "webOrigins" : [ "https://docs.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=osticket --fields clientId,redirectUris,webOrigins
+
+
+[ {
+  "clientId" : "osticket",
+  "redirectUris" : [ "https://tickets.internal-support.bonescreen.de/api/auth/oauth2" ],
+  "webOrigins" : [ "https://tickets.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=espocrm --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "espocrm",
+  "redirectUris" : [ "https://crm.internal-support.bonescreen.de/oauth-callback.php" ],
+  "webOrigins" : [ "https://crm.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=orangehrm --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "orangehrm",
+  "redirectUris" : [ "https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials" ],
+  "webOrigins" : [ "https://hr.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=erpnext --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "erpnext",
+  "redirectUris" : [ "https://erp.internal-support.bonescreen.de/api/method/frappe.integrations.oauth2_logins.login_via_keycloak" ],
+  "webOrigins" : [ "https://erp.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=seafile --fields clientId,redirectUris,webOrigins
+
+[ {
+  "clientId" : "seafile",
+  "redirectUris" : [ "https://files.internal-support.bonescreen.de/oauth/callback/" ],
+  "webOrigins" : [ "https://files.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=penpot --fields clientId,redirectUris,webOrigins
+[ {
+  "clientId" : "penpot",
+  "redirectUris" : [ "https://penpot.internal-support.bonescreen.de/api/auth/oidc/callback" ],
+  "webOrigins" : [ "https://penpot.internal-support.bonescreen.de" ]
+} ]
+$ kcadm.sh get clients -r support -q clientId=netbird --fields clientId,redirectUris,webOrigins
+
+
+[ {
+  "clientId" : "netbird",
+  "redirectUris" : [ "https://mesh.internal-support.bonescreen.de/oauth2/callback/keycloak-daohd4p1qqbc73bvu0ig" ],
+  "webOrigins" : [ "https://mesh.internal-support.bonescreen.de" ]
+} ]managed_client_http_entries=0
+managed_client_wildcard_entries=0
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=support-portal --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://internal-support.bonescreen.de/oauth2/callback
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=support-portal --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://internal-support.bonescreen.de/oauth2/callback-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=guacamole --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://remote.internal-support.bonescreen.de/guacamole/
+HTTP 302
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=guacamole --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://remote.internal-support.bonescreen.de/guacamole-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=bookstack --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://docs.internal-support.bonescreen.de/oidc/callback
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=bookstack --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://docs.internal-support.bonescreen.de/oidc/callback-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=osticket --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://tickets.internal-support.bonescreen.de/api/auth/oauth2
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=osticket --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://tickets.internal-support.bonescreen.de/api/auth/oauth2-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=espocrm --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://crm.internal-support.bonescreen.de/oauth-callback.php
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=espocrm --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://crm.internal-support.bonescreen.de/oauth-callback.php-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=orangehrm --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=orangehrm --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=erpnext --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://erp.internal-support.bonescreen.de/api/method/frappe.integrations.oauth2_logins.login_via_keycloak
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=erpnext --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://erp.internal-support.bonescreen.de/api/method/frappe.integrations.oauth2_logins.login_via_keycloak-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=seafile --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://files.internal-support.bonescreen.de/oauth/callback/
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=seafile --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://files.internal-support.bonescreen.de/oauth/callback-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=penpot --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://penpot.internal-support.bonescreen.de/api/auth/oidc/callback
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=penpot --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://penpot.internal-support.bonescreen.de/api/auth/oidc/callback-invalid
+HTTP 400
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=netbird --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://mesh.internal-support.bonescreen.de/oauth2/callback/keycloak-daohd4p1qqbc73bvu0ig
+HTTP 200
+
+$ curl -sS -o /dev/null -w '%{http_code}' --get https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth --data-urlencode client_id=netbird --data-urlencode response_type=code --data-urlencode scope=openid --data-urlencode redirect_uri=https://mesh.internal-support.bonescreen.de/oauth2/callback/keycloak-daohd4p1qqbc73bvu0ig-invalid
+HTTP 400
+
+=== OrangeHRM browser callback ===
+
+$ curl -sS -D - -o /dev/null https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials/1 | sed -n '/^HTTP\//p;/^[Ll]ocation:/p'
+HTTP/2 302
+location: https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth?response_type=code&redirect_uri=https%3A%2F%2Fhr.internal-support.bonescreen.de%2Fweb%2Findex.php%2Fopenidauth%2FopenIdCredentials&client_id=orangehrm&nonce=<REDACTED_NONCE>&state=<REDACTED_STATE>&scope=email+openid&prompt=consent
+Overall result: PASSED

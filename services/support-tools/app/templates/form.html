@@ -28,7 +28,7 @@
       <label>Start offset (days)<input type="number" name="start_offset_days" min="-366" max="366" value="{{ rule.start_offset_days }}" required><small>0 starts today; 1 starts tomorrow.</small></label>
       <label>Period length (days)<input type="number" name="period_days" min="1" max="366" value="{{ rule.period_days }}" required></label>
     </div>
-    <fieldset><legend>Leave status</legend><div class="checks"><label><input type="checkbox" name="statuses" value="2" {{ 'checked' if 2 in rule.statuses }}> Approved</label><label><input type="checkbox" name="statuses" value="3" {{ 'checked' if 3 in rule.statuses }}> Taken</label></div></fieldset>
+    <fieldset><legend>Leave status</legend><div class="checks"><label><input type="checkbox" name="statuses" value="Approved" {{ 'checked' if 'Approved' in rule.statuses or 2 in rule.statuses or 3 in rule.statuses }}> Approved and submitted</label></div></fieldset>
     <div class="checks"><label><input type="checkbox" name="send_when_empty" {{ 'checked' if rule.send_when_empty }}> Send when no absences match</label><label><input type="checkbox" name="include_leave_type" {{ 'checked' if rule.include_leave_type }}> Include leave type</label></div>
   </section>
 
@@ -51,4 +51,3 @@
   <div class="savebar"><span>Saving creates an audit revision and publishes the runtime snapshot.</span><button class="button primary" type="submit">{{ 'Save & publish' if editing else 'Create & publish' }}</button></div>
 </form>
 {% endblock %}
-

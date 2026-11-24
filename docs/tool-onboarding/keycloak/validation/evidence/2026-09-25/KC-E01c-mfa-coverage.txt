@@ -1,0 +1,20 @@
+Evidence ID: KC-E01c-mfa-coverage
+Captured UTC: 2026-09-25T15:44:00Z
+Environment: production support realm
+
+Aggregate privileged-group results (usernames excluded):
+- platform-admin: 1 member, 1 enabled, 0 with OTP; all_have_otp=false
+- support-engineer: 1 member, 1 enabled, 0 with OTP; all_have_otp=false
+
+Related realm controls:
+- Active browser flow uses conditional OTP only when the user already has OTP configured.
+- CONFIGURE_TOTP is enabled but is not a default required action.
+- Brute-force protection is disabled.
+
+Conclusion: MFA is technically available but is not enforced for the designated privileged groups. No user credential or personal identifier is retained in this evidence.
+
+Command-level evidence
+----------------------
+- The complete command transcript for the historical pre-remediation MFA gap was not retained and cannot be recreated after enrollment without reversing an approved security control.
+- Current group membership, OTP-credential counts, pending-action counts, and delegated-role commands with responses are recorded in KC-E13-current-state-command-transcript.txt.
+- The corresponding interactive MFA result is recorded in KC-E12-privileged-mfa-and-admin.txt.

@@ -16,11 +16,13 @@ This document describes how to connect the main support apps to Keycloak OIDC, i
 ### Keycloak Client
 
 1. `clientId`: `osticket` (or your configured `OSTICKET_OIDC_CLIENT_ID`)
-2. `Client authentication`: `On` (confidential client)
-3. `Valid redirect URIs`:
-   - `https://<TICKETS_HOST>/auth/oauth2`
-   - optionally `https://<TICKETS_HOST>/*`
-4. `Web origins`:
+2. Login eligibility: users must belong to both `employees` and
+   `app-osticket-agent`; `sync_keycloak_redirects.sh` binds the client to the
+   `osticket-agent-eligible-browser` flow.
+3. `Client authentication`: `On` (confidential client)
+4. `Valid redirect URIs`:
+   - `https://<TICKETS_HOST>/api/auth/oauth2`
+5. `Web origins`:
    - `https://<TICKETS_HOST>`
 
 ### osTicket Plugin Configuration
@@ -44,63 +46,18 @@ This document describes how to connect the main support apps to Keycloak OIDC, i
 
 ---
 
-## OrangeHRM
+## Frappe HR / ERPNext
 
-### Keycloak Client
+Frappe HR is installed in the existing ERPNext site and uses the existing `erpnext` Keycloak client. Do not create a separate HR client.
 
-1. `clientId`: `orangehrm` (or `ORANGEHRM_OIDC_CLIENT_ID`)
-2. `Client authentication`: `On`
-3. `Valid redirect URIs`:
-   - `https://<HR_HOST>/*`
-   - `https://<HR_HOST>/web/index.php/openidauth/*`
-   - `https://<HR_HOST>/index.php/openidauth/*`
-4. `Web origins`:
-   - `https://<HR_HOST>`
+1. `clientId`: `erpnext` (or `ERPNEXT_OIDC_CLIENT_ID`).
+2. Valid callback: `https://<ERP_HOST>/api/method/frappe.integrations.oauth2_logins.login_via_keycloak`.
+3. Web origin: `https://<ERP_HOST>`.
+4. Eligibility: membership in the Keycloak `employees` group.
+5. Keycloak login creates or matches the Frappe `User`; it does not create an HR `Employee` record.
+6. Link reviewed employee master data with `scripts/onboard_frappe_hr_employee.sh --env-file <ENV_FILE> ...` after the user has logged in once.
 
-### OrangeHRM Provider Configuration
-
-In OrangeHRM `Admin -> Configuration -> Social Media Authentication`:
-
-1. `Name`: e.g. `Keycloak`
-2. `Provider URL`:
-   - preferred in this stack: `http://<SSO_HOST>/realms/<REALM>` (container-internal reachability)
-   - use `https://<SSO_HOST>/realms/<REALM>` only if OrangeHRM container can reach `443` and trusts your cert chain
-3. `Client ID`: `orangehrm`
-4. `Client Secret`: must match Keycloak
-
-Notes:
-
-1. OrangeHRM performs OIDC discovery server-side from inside the container.
-2. Keep the provider URL on the SSO hostname so discovery returns Keycloak's public HTTPS issuer and authorization endpoint.
-3. Set `ORANGEHRM_OIDC_INTERNAL_BASE_URI=http://keycloak:8080/realms/<REALM>` in the stack environment. The startup patch uses this internal base only for the token, user-info, and JWKS requests made by OrangeHRM inside Docker.
-4. This split is required when the browser can reach public HTTPS but the OrangeHRM container cannot connect back to the reverse proxy on port `443`.
-5. The patch is idempotently applied from `config/orangehrm/patch-oidc-internal-endpoints.php` whenever the OrangeHRM container starts.
-
-### Mapping Notes (Important)
-
-OrangeHRM OIDC plugin uses `userinfo.email` as the login lookup value, then matches it against OrangeHRM `username`.
-
-Effective mapping:
-
-1. Keycloak `email` claim -> OrangeHRM `ohrm_user.user_name`
-
-This means OrangeHRM must have a user whose **username equals the Keycloak account email**.
-
-Example:
-
-1. Keycloak user email: `giles.tetteh@tum.de`
-2. OrangeHRM username must be: `giles.tetteh@tum.de`
-
-### Common Errors
-
-1. `500` on `/openidauth/openIdCredentials/...`:
-   - container cannot reach SSO host or TLS trust issue.
-   - the browser redirect may work while the callback fails if OrangeHRM cannot reach the discovered HTTPS token endpoint; verify `ORANGEHRM_OIDC_INTERNAL_BASE_URI` is present in the container.
-   - check `/var/www/html/src/log/orangehrm.log`; common errors are:
-     - `Failed to connect ... port 443`
-     - `SSL certificate problem: unable to get local issuer certificate`
-2. `No User Found`:
-   - no OrangeHRM username matching Keycloak `email`.
+The former `hr.<domain>` hostname redirects permanently to `ERP_HOST`, and the synchronization script disables the retired `orangehrm` client when it exists. Keep the old OrangeHRM database volume only for the approved migration/rollback retention period.
 
 ---
 
@@ -136,7 +93,17 @@ Typical mapping:
 1. `email` -> Espo email
 2. `given_name` -> first name
 3. `family_name` -> last name
-4. `preferred_username` -> username
+4. `sub` -> username and immutable external-identity link
+
+The stack configures these controls through supported `ESPOCRM_CONFIG_*`
+environment variables:
+
+1. JIT user creation and profile synchronization are enabled.
+2. Team synchronization is disabled.
+3. New identities are regular users with no roles or teams.
+4. Keycloak requires `employees` before issuing the authorization code.
+5. Local fallback is restricted to the break-glass administrator; regular users
+   cannot bypass Keycloak.
 
 If callback URL appears wrong in Espo UI, verify Espo base URL/site URL setting and restart container.
 
@@ -243,7 +210,9 @@ This keeps browser authentication on public HTTPS while avoiding reverse-proxy T
 
 ### Mapping Notes
 
-1. `preferred_username` is the provider user identifier.
+1. The immutable Keycloak `sub` claim is the provider user identifier. Existing
+   legacy links that stored `preferred_username` require reviewed migration and
+   are never reassigned automatically.
 2. `email`, `given_name`, and `family_name` populate the Frappe user profile.
 3. New Keycloak users are created in ERPNext because the provider's `sign_ups` setting is `Allow`.
 
@@ -258,11 +227,11 @@ NetBird uses its embedded local identity provider for a break-glass owner, while
 1. `clientId`: `netbird` (or `NETBIRD_OIDC_CLIENT_ID`)
 2. `Client authentication`: `On`
 3. `Standard flow`: `On`
-4. Valid redirect URI: `https://<NETBIRD_HOST>/oauth2/callback/*`
+4. Valid redirect URI: the exact value of `NETBIRD_OIDC_REDIRECT_URI`: `https://<NETBIRD_HOST>/oauth2/callback`
 5. Valid post-logout redirect URI: `https://<NETBIRD_HOST>/oauth2/logout/callback`
 6. Web origin: `https://<NETBIRD_HOST>`
 
-`scripts/sync_keycloak_redirects.sh` creates or updates this client and adds a group-membership mapper named `groups`. The wildcard is limited to NetBird's dynamic connector callback path; NetBird assigns the final connector ID when the provider is saved.
+`scripts/sync_keycloak_redirects.sh` creates or updates this client and adds a group-membership mapper named `groups`. Keep `NETBIRD_OIDC_REDIRECT_URI` on the stable `/oauth2/callback` endpoint sent by the current self-hosted NetBird login flow. Wildcards and connector-specific callback suffixes are not used.
 
 ### NetBird Provider Configuration
 
@@ -305,8 +274,49 @@ docker compose --env-file .env exec -T keycloak \
   /opt/keycloak/bin/kcadm.sh get clients -r support -q clientId=<client-id>
 ```
 
-4. For OrangeHRM OIDC errors:
+4. For Frappe HR / ERPNext OIDC errors:
 ```bash
-docker compose --env-file .env exec -T orangehrm \
-  sh -lc 'tail -n 120 /var/www/html/src/log/orangehrm.log'
+docker compose --env-file .env logs --tail=120 erpnext-backend
+docker compose --env-file .env exec -T erpnext-backend \
+  bench --site "$ERPNEXT_SITE_NAME" list-apps
 ```
+
+---
+
+## Support Portal And Support Tools
+
+### Keycloak Client
+
+1. `clientId`: `support-portal` (or `SUPPORT_PORTAL_OIDC_CLIENT_ID`).
+2. Client authentication: `On`.
+3. Valid redirect URI: `https://<SUPPORT_HOST>/oauth2/callback`.
+4. Web origin: `https://<SUPPORT_HOST>`.
+5. Protocol mapper `groups`: group-membership mapper with full group paths disabled and the claim included in ID, access, and user-info tokens.
+
+### Authorization Model
+
+The portal accepts any authenticated account for its general landing page, but `/automations` additionally requires the `support-admin` group. This separation prevents ordinary Keycloak users and support engineers from changing automation recipients, schedules, or email content.
+
+`scripts/sync_keycloak_redirects.sh` idempotently creates:
+
+1. Realm role `support-admin`.
+2. Group `support-admin`.
+3. The realm-role assignment on that group.
+4. The `groups` claim mapper on `support-portal`.
+
+The sync script intentionally does not assign users. Manage access in `Users -> <user> -> Groups` in the Keycloak Admin Console. After joining or leaving the group, the user must sign out of the support portal and sign in again so oauth2-proxy receives a fresh token. Terminate the user's Keycloak sessions when a revocation must take effect immediately.
+
+Keep `SUPPORT_TOOLS_ALLOWED_GROUP=support-admin` and `SUPPORT_TOOLS_DEV_AUTH_BYPASS=false` in production. Detailed deployment, verification, and troubleshooting steps are in `docs/support_tools_operations.md`.
+
+
+### Realm Group MFA Policy
+
+The managed support realm uses group-scoped TOTP rather than realm-wide enrollment:
+
+1. `platform-admin`, `support-engineer`, and `support-admin` require TOTP.
+2. Members of `employees` alone do not require TOTP.
+3. If a user belongs to `employees` and any protected group, the protected group takes precedence.
+4. Existing OTP credentials are never removed from employees; the policy only avoids mandatory enrollment for employees-only accounts.
+5. Run `./scripts/sync_keycloak_redirects.sh <env-file>` before `./scripts/harden_keycloak.sh <env-file>` on fresh deployments and after protected-group membership changes.
+
+The realm template includes both managed groups, the sync script creates them idempotently in existing realms, and the hardening script disables global default TOTP enrollment before applying `CONFIGURE_TOTP` to protected-group members.

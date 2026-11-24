@@ -1,0 +1,129 @@
+Evidence ID: KC-E02-oidc-control-tests
+Original execution UTC: 2026-09-25T15:47:00Z
+Re-execution UTC: 2026-09-25T19:44:13Z
+Environment: production support realm using dedicated temporary objects
+Result: PASSED
+Evidence method
+---------------
+The original summary did not retain its command transcript. The complete control set was rerun with fresh synthetic objects. Commands below are complete but sanitized: secrets, tokens, generated IDs, and synthetic names are replaced with explicit placeholders. Responses are actual responses with those redactions applied.
+
+Executed entry command
+----------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/validate_keycloak_oidc_controls.sh .env'
+
+Reusable script
+---------------
+Path: scripts/validate_keycloak_oidc_controls.sh
+SHA-256: 1ab1f75c5190854846f0408bad77cdeccd0f02d88a40ed645afd13cbdc6cf162
+
+Sanitized command and response transcript
+-----------------------------------------
+Evidence execution UTC: 2026-09-25T19:44:13Z
+Environment: production support realm; dedicated temporary objects
+Redaction: passwords, client secrets, tokens, generated IDs, and synthetic names are replaced by placeholders.
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak kcadm.sh config credentials --server http://localhost:8080 --realm master --user <ADMIN_USER> --password <REDACTED>
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+Exit code: 0
+
+$ kcadm.sh create clients -r support -s clientId=<TEMP_CLIENT> -s publicClient=false -s directAccessGrantsEnabled=true -s serviceAccountsEnabled=true -s secret=<REDACTED> -i
+Response: created temporary confidential client; generated ID <REDACTED>
+
+$ kcadm.sh create clients/<CLIENT_ID>/protocol-mappers/models -r support -s name=groups -s protocol=openid-connect -s protocolMapper=oidc-group-membership-mapper -s 'config."full.path"=false' -s 'config."claim.name"=groups' -s 'config."id.token.claim"=true' -s 'config."access.token.claim"=true' -s 'config."userinfo.token.claim"=true'
+Response: Created new protocol mapper
+
+$ kcadm.sh create groups -r support -s name=<TEMP_GROUP> -i
+Response: created temporary group; generated ID <REDACTED>
+
+$ kcadm.sh create users -r support -s username=<TEMP_USER> -s email=<SYNTHETIC_EMAIL> -s firstName=Validation -s lastName=User -s emailVerified=true -s enabled=true -i
+Response: created enabled temporary user; generated ID <REDACTED>
+
+$ kcadm.sh update users/<USER_ID> -r support -s 'requiredActions=[]'
+Exit code: 0
+
+$ kcadm.sh set-password -r support --userid <USER_ID> --new-password <REDACTED> --temporary=false
+Exit code: 0
+
+$ kcadm.sh update users/<USER_ID>/groups/<GROUP_ID> -r support -n
+Exit code: 0
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d client_secret=<REDACTED> -d username=<TEMP_USER> --data-urlencode password=<REDACTED>
+HTTP 200
+{
+  "access_token": "<REDACTED>",
+  "expires_in": 300,
+  "token_type": "Bearer"
+}
+Decoded access-token assertion: groups contains <TEMP_GROUP> = true
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d client_secret=<REDACTED> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ kcadm.sh delete users/<USER_ID>/groups/<GROUP_ID> -r support
+Exit code: 0
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d client_secret=<REDACTED> -d username=<TEMP_USER> --data-urlencode password=<REDACTED> # after group removal
+HTTP 200
+Decoded access-token assertion: groups contains <TEMP_GROUP> = false
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=<TEMP_CLIENT> -d client_secret=<OLD_SECRET>
+HTTP 200
+{
+  "access_token": "<REDACTED>",
+  "expires_in": 300,
+  "token_type": "Bearer"
+}
+
+$ kcadm.sh update clients/<CLIENT_ID> -r support -s secret=<NEW_SECRET>
+Exit code: 0
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=<TEMP_CLIENT> -d client_secret=<OLD_SECRET>
+HTTP 401
+{"error":"unauthorized_client","error_description":"Invalid client or Invalid client credentials"}
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=client_credentials -d client_id=<TEMP_CLIENT> -d client_secret=<NEW_SECRET>
+HTTP 200
+{
+  "access_token": "<REDACTED>",
+  "expires_in": 300,
+  "token_type": "Bearer"
+}
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://sso.internal-support.bonescreen.de/admin/realms/support
+HTTP 401
+
+$ curl -sS -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer <REDACTED_TOKEN>' https://sso.internal-support.bonescreen.de/admin/realms/support
+HTTP 403
+
+$ kcadm.sh get realms/support --fields realm,enabled
+
+{
+  "realm" : "support",
+  "enabled" : true
+}Exit code: 0
+
+$ kcadm.sh create users/<USER_ID>/logout -r support
+Exit code: 0
+
+$ kcadm.sh update users/<USER_ID> -r support -s enabled=false
+Exit code: 0
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d client_secret=<NEW_SECRET> -d username=<TEMP_USER> --data-urlencode password=<REDACTED> # after disablement
+HTTP 400
+{"error":"invalid_grant","error_description":"Account disabled"}
+
+$ curl -sS -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token/introspect -u '<TEMP_CLIENT>:<NEW_SECRET>' -d token=<REDACTED_TOKEN>
+HTTP 200
+{ "active": false }
+
+$ kcadm.sh delete users/<USER_ID> -r support; kcadm.sh delete clients/<CLIENT_ID> -r support; kcadm.sh delete groups/<GROUP_ID> -r support
+Exit code: 0
+
+$ kcadm.sh get users -r support -q username=<TEMP_USER>; kcadm.sh get clients -r support -q clientId=<TEMP_CLIENT>; kcadm.sh get groups -r support -q search=<TEMP_GROUP>
+
+
+temporary_users_remaining=0
+temporary_clients_remaining=0
+temporary_groups_remaining=0
+Overall result: PASSED

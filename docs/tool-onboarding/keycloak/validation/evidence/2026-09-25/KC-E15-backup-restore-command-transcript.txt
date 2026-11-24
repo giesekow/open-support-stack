@@ -1,0 +1,80 @@
+Evidence ID: KC-E15
+Captured UTC: 2026-09-25T19:58:59Z
+Executed entry command: `ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/validate_keycloak_backup_restore.sh .env backups/keycloak-remediation-20260925T185105Z > /tmp/KC-E15-backup-restore-command-transcript.txt 2>&1'`
+Evidence script: `scripts/validate_keycloak_backup_restore.sh`
+Evidence script SHA-256: `93b3247167043bc614a0c70d28ee62d88b578f1dd1ff67d218bfb8d7a127c181`
+Result: PASSED
+Environment: isolated Docker restore rehearsal on the production host
+Backup directory: backups/keycloak-remediation-20260925T185105Z
+Redaction: passwords, administrator identity, generated container IDs, and internal object IDs are excluded.
+
+$ sha256sum <BACKUP_DIRECTORY>/keycloak.sql.gz <BACKUP_DIRECTORY>/config.tar.gz
+7a9c276ad8f7cf66e3389aae4e8f35c284c59f9cd0072656561efa3592945a53  <BACKUP_DIRECTORY>/keycloak.sql.gz
+bcae4275e6bf4ed9a5ed1d61831ec1ae021bf3499e765c59a7fb87897baf10f1  <BACKUP_DIRECTORY>/config.tar.gz
+
+$ gzip -t <BACKUP_DIRECTORY>/keycloak.sql.gz
+Exit code: 0
+
+$ tar -tzf <BACKUP_DIRECTORY>/config.tar.gz >/dev/null
+Exit code: 0
+
+$ docker network create <RESTORE_NETWORK>
+Exit code: 0
+
+$ docker run -d --name <RESTORE_DB_CONTAINER> --network <RESTORE_NETWORK> -e POSTGRES_DB=keycloak -e POSTGRES_USER=keycloak -e POSTGRES_PASSWORD=<REDACTED> postgres:16
+Exit code: 0
+
+$ docker exec <RESTORE_DB_CONTAINER> pg_isready -U keycloak -d keycloak
+/var/run/postgresql:5432 - accepting connections
+
+$ gzip -dc <BACKUP_DIRECTORY>/keycloak.sql.gz | docker exec -i <RESTORE_DB_CONTAINER> psql -v ON_ERROR_STOP=1 -U keycloak -d keycloak
+Exit code: 0
+
+$ docker run -d --name <RESTORE_KEYCLOAK_CONTAINER> --network <RESTORE_NETWORK> -e KC_DB=postgres -e KC_DB_URL_HOST=<RESTORE_DB_CONTAINER> -e KC_DB_URL_PORT=5432 -e KC_DB_URL_DATABASE=keycloak -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=<REDACTED> quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname=http://keycloak-validation.local --hostname-strict=true
+Exit code: 0
+
+$ docker logs <RESTORE_KEYCLOAK_CONTAINER> 2>&1 | grep -E 'Updating database|Migrating to|Keycloak .* started|Profile prod activated'
+2026-09-25 19:59:10,732 INFO  [org.keycloak.quarkus.runtime.storage.database.liquibase.QuarkusJpaUpdaterProvider] (main) Updating database. Using changelog META-INF/jpa-changelog-master.xml
+2026-09-25 19:59:14,666 INFO  [io.quarkus] (main) Keycloak 26.7.4 on JVM (powered by Quarkus 3.33.3.2) started in 7.482s. Listening on: http://0.0.0.0:8080
+2026-09-25 19:59:14,667 INFO  [io.quarkus] (main) Profile prod activated.
+
+$ curl -sS -o /dev/null -w '%{http_code}' -H 'Host: keycloak-validation.local' http://<RESTORE_KEYCLOAK_IP>:8080/realms/support/.well-known/openid-configuration
+HTTP 200
+
+$ docker exec <RESTORE_KEYCLOAK_CONTAINER> /opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user <ADMIN_USER> --password <REDACTED>
+Exit code: 0
+
+$ docker exec <RESTORE_KEYCLOAK_CONTAINER> /opt/keycloak/bin/kcadm.sh get realms/support --fields realm,enabled
+{
+  "realm" : "support",
+  "enabled" : true
+}
+
+$ docker port <RESTORE_KEYCLOAK_CONTAINER>
+<no host-published ports>
+
+$ docker rm -f <RESTORE_KEYCLOAK_CONTAINER> <RESTORE_DB_CONTAINER>
+Exit code: 0
+
+$ docker network rm <RESTORE_NETWORK>
+Exit code: 0
+
+$ docker ps -a --filter name=^/<RESTORE_CONTAINER_PREFIX> --format '{{.Names}}'
+<none>
+
+$ docker network ls --filter name=^<RESTORE_NETWORK>$ --format '{{.Name}}'
+<none>
+
+$ docker compose --env-file <ENV_FILE> ps keycloak keycloak-db
+NAME                  IMAGE                                                                                               COMMAND                  SERVICE       CREATED             STATUS             PORTS
+support-keycloak      quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c   "/opt/keycloak/bin/k…"   keycloak      About an hour ago   Up About an hour   8080/tcp, 8443/tcp, 9000/tcp
+support-keycloak-db   postgres:16                                                                                         "docker-entrypoint.s…"   keycloak-db   10 days ago         Up 10 days         5432/tcp
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://sso.internal-support.bonescreen.de/realms/support/.well-known/openid-configuration
+HTTP 200
+Overall result: PASSED
+
+Post-capture cleanup
+--------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'rm -f /tmp/KC-E15-backup-restore-command-transcript.txt /tmp/KC-E16-sync-command-transcript.txt && test ! -e /tmp/KC-E15-backup-restore-command-transcript.txt && test ! -e /tmp/KC-E16-sync-command-transcript.txt && echo remote_transcript_files_remaining=0'
+remote_transcript_files_remaining=0

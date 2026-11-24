@@ -1,0 +1,92 @@
+Evidence ID: KC-E01-realm-security-baseline
+Captured UTC: 2026-09-25T15:41:37Z
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+--- Realm controls (no secrets) ---
+{
+  "realm" : "support",
+  "defaultSignatureAlgorithm" : "RS256",
+  "accessTokenLifespan" : 300,
+  "ssoSessionIdleTimeout" : 1800,
+  "ssoSessionMaxLifespan" : 36000,
+  "offlineSessionIdleTimeout" : 2592000,
+  "enabled" : true,
+  "sslRequired" : "external",
+  "registrationAllowed" : false,
+  "rememberMe" : true,
+  "verifyEmail" : false,
+  "bruteForceProtected" : false
+}--- Required actions ---
+
+[ {
+  "alias" : "CONFIGURE_TOTP",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "TERMS_AND_CONDITIONS",
+  "enabled" : false,
+  "defaultAction" : false
+}, {
+  "alias" : "UPDATE_PASSWORD",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "UPDATE_PROFILE",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "VERIFY_EMAIL",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "delete_account",
+  "enabled" : false,
+  "defaultAction" : false
+}, {
+  "alias" : "webauthn-register",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "webauthn-register-passwordless",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "VERIFY_PROFILE",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "delete_credential",
+  "enabled" : true,
+  "defaultAction" : false
+}, {
+  "alias" : "update_user_locale",
+  "enabled" : true,
+  "defaultAction" : false
+} ]
+--- Client inventory (IDs and flow flags only) ---
+account,true,true,true,false,false
+account-console,true,true,true,false,false
+admin-cli,true,true,false,true,false
+bookstack,true,false,true,false,false
+broker,true,false,true,false,false
+erpnext,true,false,true,false,false
+espocrm,true,false,true,false,false
+guacamole,true,true,false,false,false
+netbird,true,false,true,false,false
+orangehrm,true,false,true,true,true
+osticket,true,false,true,false,false
+penpot,true,false,true,true,true
+realm-management,true,false,true,false,false
+seafile,true,false,true,false,false
+security-admin-console,true,true,true,false,false
+support-portal,true,false,true,true,true
+vaultwarden-proxy,true,false,true,false,false
+--- Group names only ---
+auditor
+platform-admin
+support-engineer
+
+Command-level evidence
+----------------------
+- The complete command transcript for this historical pre-remediation baseline was not retained; it is not reconstructed here.
+- Current realm controls and required-action commands with responses are recorded in KC-E13-current-state-command-transcript.txt.
+- Brute-force behavior and cleanup commands with responses are recorded in KC-E14-brute-force-command-transcript.txt.

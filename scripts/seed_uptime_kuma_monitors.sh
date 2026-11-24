@@ -155,8 +155,7 @@ const defaults = [
   { name: "NetBird", url: `https://${netbirdHost}/api/instance` },
   { name: "osTicket", url: `https://${ticketsHost}/` },
   { name: "EspoCRM", url: `https://${crmHost}/` },
-  { name: "OrangeHRM", url: `https://${hrHost}/` },
-  { name: "ERPNext", url: `https://${erpHost}/` },
+  { name: "Frappe HR / ERPNext", url: `https://${erpHost}/api/method/ping` },
 ];
 
 function emitAck(socket, event, ...args) {

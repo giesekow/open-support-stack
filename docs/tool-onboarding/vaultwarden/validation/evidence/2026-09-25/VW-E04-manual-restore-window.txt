@@ -1,0 +1,107 @@
+$ ssh -i ~/.ssh/id_ed25519 administrator@10.1.128.6 'cd /home/administrator/open-support-stack && ./scripts/validate_vaultwarden_backup_restore.sh .env 18080'
+
+Evidence execution UTC: 2026-09-25T22:27:27Z
+Environment: production backup with isolated restore target
+Backup directory: backups/vaultwarden-validation-20260925T222727Z
+Redaction: vault contents, account identifiers, credentials, tokens, SMTP settings, and encryption material are excluded.
+
+$ docker exec support-vaultwarden /vaultwarden backup
+Backup to 'data/<ONLINE_BACKUP_FILE>' was successful
+
+$ docker cp support-vaultwarden:/data/<ONLINE_BACKUP_FILE> <BACKUP_DIRECTORY>/db.sqlite3
+Exit code: 0
+
+$ docker exec support-vaultwarden rm -f /data/<ONLINE_BACKUP_FILE>
+Exit code: 0
+
+$ docker run --rm -v <VAULTWARDEN_DATA_VOLUME>:/source:ro -v <BACKUP_DIRECTORY>:/backup vaultwarden/server:1.37.2 sh -lc 'cd /source && tar --exclude=db.sqlite3 --exclude=db.sqlite3-shm --exclude=db.sqlite3-wal --exclude=db_*.sqlite3 -czf /backup/data-files.tar.gz .'
+Exit code: 0
+
+$ tar -czf <BACKUP_DIRECTORY>/stack-config.tar.gz <ENV_FILE> docker-compose.yml nginx/templates
+Exit code: 0
+
+$ docker run --rm -v <BACKUP_DIRECTORY>:/backup vaultwarden/server:1.37.2 sh -lc 'chown -R <DEPLOY_UID>:<DEPLOY_GID> /backup && chmod -R go-rwx /backup'
+Exit code: 0
+
+$ stat -c '%a %U:%G %n' <BACKUP_DIRECTORY> <BACKUP_DIRECTORY>/*
+700 administrator:administrator <BACKUP_DIRECTORY>
+600 administrator:administrator <BACKUP_DIRECTORY>/data-files.tar.gz
+600 administrator:administrator <BACKUP_DIRECTORY>/db.sqlite3
+600 administrator:administrator <BACKUP_DIRECTORY>/stack-config.tar.gz
+
+$ sha256sum <BACKUP_DIRECTORY>/db.sqlite3 <BACKUP_DIRECTORY>/data-files.tar.gz <BACKUP_DIRECTORY>/stack-config.tar.gz
+9dde1015e852d569bcb6005ff18ab98c22a5c9971fb4fc8e8640a10fb0da58f8  <BACKUP_DIRECTORY>/db.sqlite3
+76ada9adc3e67cb866fd5bd9f018aa2f72a675b12ff0c788f7538697e0425c1b  <BACKUP_DIRECTORY>/data-files.tar.gz
+d7c03729a255326023bbe94214b66d9d2ed5476838ffaf838424196f0ec39e7a  <BACKUP_DIRECTORY>/stack-config.tar.gz
+
+$ python3 -c 'run SQLite integrity_check and print aggregate counts only' <BACKUP_DIRECTORY>/db.sqlite3
+integrity_check=ok
+users_count=5
+organizations_count=1
+collections_count=3
+ciphers_count=24
+users_organizations_count=3
+
+$ tar -tzf <BACKUP_DIRECTORY>/data-files.tar.gz >/dev/null && tar -tzf <BACKUP_DIRECTORY>/stack-config.tar.gz >/dev/null
+Exit code: 0
+
+$ docker volume create <RESTORE_VOLUME>
+Exit code: 0
+
+$ docker run --rm -v <RESTORE_VOLUME>:/data -v <BACKUP_DIRECTORY>:/backup:ro vaultwarden/server:1.37.2 sh -lc 'tar -xzf /backup/data-files.tar.gz -C /data && cp /backup/db.sqlite3 /data/db.sqlite3 && rm -f /data/db.sqlite3-shm /data/db.sqlite3-wal'
+Exit code: 0
+
+$ docker network create --internal <RESTORE_NETWORK>
+Exit code: 0
+
+$ docker run -d --name <RESTORE_CONTAINER> --network <RESTORE_NETWORK> -v <RESTORE_VOLUME>:/data -e DOMAIN=<RESTORE_DOMAIN> -e SIGNUPS_ALLOWED=false -e INVITATIONS_ALLOWED=false -e ADMIN_TOKEN=<REDACTED> vaultwarden/server:1.37.2
+Exit code: 0
+
+$ docker logs <RESTORE_CONTAINER> 2>&1 | grep -E 'Vaultwarden|Rocket has launched' | tail -n 8
+|                        Starting Vaultwarden                        |
+[2026-09-25 22:27:29.152][start][INFO] Rocket has launched from http://0.0.0.0:80
+
+$ curl -sS -o /dev/null -w '%{http_code}' -H 'Host: vaultwarden-validation.local' http://<RESTORE_IP>/alive
+HTTP 200
+
+$ docker port <RESTORE_CONTAINER>
+<no host-published ports>
+
+$ docker cp <RESTORE_CONTAINER>:/data/db.sqlite3 <TEMP_DB>
+Exit code: 0
+
+$ python3 -c 'run restored SQLite integrity_check and print aggregate counts only' <TEMP_DB>
+integrity_check=ok
+users_count=5
+organizations_count=1
+collections_count=3
+ciphers_count=24
+users_organizations_count=3
+
+$ docker compose --env-file <ENV_FILE> ps vaultwarden
+NAME                  IMAGE                       COMMAND       SERVICE       CREATED      STATUS                PORTS
+support-vaultwarden   vaultwarden/server:1.37.2   "/start.sh"   vaultwarden   4 days ago   Up 4 days (healthy)   80/tcp
+
+$ curl -sS -o /dev/null -w '%{http_code}' https://vault.internal-support.bonescreen.de/alive
+HTTP 200
+Protected backup retained at: backups/vaultwarden-validation-20260925T222727Z
+Manual restore has no host-published port.
+SSH tunnel: ssh -L 18080:172.19.0.2:80 <deployment-host>
+Open locally: http://localhost:18080
+Restore container: vaultwarden-validation-20260925t222727z
+Restore volume: vaultwarden-validation-20260925t222727z
+Restore network: vaultwarden-validation-20260925t222727z
+Cleanup: docker rm -f vaultwarden-validation-20260925t222727z && docker volume rm vaultwarden-validation-20260925t222727z && docker network rm vaultwarden-validation-20260925t222727z
+Infrastructure restore result: PASSED
+Encrypted-data usability result: READY FOR MANUAL LOGIN AND ITEM/PERMISSION CHECK
+
+## Independent SSH tunnel verification
+
+$ timeout 15 ssh -N -L 18080:172.19.0.2:80 -i ~/.ssh/id_ed25519 administrator@10.1.128.6
+$ curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://localhost:18080/alive
+HTTP 200
+
+## Reusable script identity
+
+$ sha256sum scripts/validate_vaultwarden_backup_restore.sh
+99c1f69767b9e8c8ec3faffa5439bf786790439336c6f3550b51a84e15a117d4  scripts/validate_vaultwarden_backup_restore.sh

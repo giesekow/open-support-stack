@@ -82,15 +82,9 @@ server {
 server {
     listen 80;
     server_name __HR_HOST__;
-    resolver 127.0.0.11 valid=30s;
 
     location / {
-        set $upstream_hr orangehrm:80;
-        proxy_pass http://$upstream_hr;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
+        return 308 http://__ERP_HOST__$request_uri;
     }
 }
 
@@ -299,6 +293,7 @@ server {
         error_page 401 =302 /oauth2/start?rd=https://$host$request_uri;
         auth_request_set $auth_user $upstream_http_x_auth_request_user;
         auth_request_set $auth_email $upstream_http_x_auth_request_email;
+        auth_request_set $auth_groups $upstream_http_x_auth_request_groups;
 
         set $upstream_support_tools support-tools:8000;
         proxy_pass http://$upstream_support_tools;
@@ -308,6 +303,7 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Auth-Request-User $auth_user;
         proxy_set_header X-Auth-Request-Email $auth_email;
+        proxy_set_header X-Auth-Request-Groups $auth_groups;
     }
 
     location / {

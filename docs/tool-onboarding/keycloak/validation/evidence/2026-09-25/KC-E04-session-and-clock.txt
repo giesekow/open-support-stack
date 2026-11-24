@@ -1,0 +1,21 @@
+Clock state:
+- Host NTP synchronized: yes
+- Host/container UTC clock delta: 0 seconds
+
+Realm timing baseline:
+- Access token lifespan: 300 seconds
+- SSO session idle timeout: 1800 seconds
+- SSO session maximum lifespan: 36000 seconds
+- Offline session idle timeout: 2592000 seconds
+
+Lifecycle result:
+- Group removal was absent from the next token.
+- Logout plus user disablement made the prior token inactive on introspection.
+- New password-grant login after disablement failed.
+
+No token or user identifier is retained in this evidence.
+
+Command-level evidence
+----------------------
+- Current session settings, NTP state, and host/container clock comparison commands with responses are recorded in KC-E13-current-state-command-transcript.txt.
+- Group-removal, logout, disablement, login-denial, token-introspection, and cleanup commands with responses are recorded in KC-E02-oidc-control-tests.txt.

@@ -4,7 +4,8 @@ fastapi==0.116.1
 Jinja2==3.1.6
 itsdangerous==2.2.0
 psycopg[binary]==3.2.10
+PyMySQL==1.1.2
 python-multipart==0.0.20
+redis==6.4.0
 SQLAlchemy==2.0.43
 uvicorn[standard]==0.35.0
-

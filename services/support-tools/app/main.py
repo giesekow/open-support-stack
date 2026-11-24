@@ -1,6 +1,8 @@
 import os
 import smtplib
 import secrets
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Any, Generator
 from urllib.parse import quote
@@ -14,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from .access import authorize_actor
 from .database import SessionLocal
 from .domain import (
     WEEKDAYS,
@@ -27,10 +30,31 @@ from .domain import (
     split_values,
     validate_rule,
 )
-from .models import AutomationRule, AutomationRuleRevision
+from .models import (
+    AutomationRule,
+    AutomationRuleRevision,
+    IdentityLink,
+    ProvisioningAction,
+    ProvisioningAuditEvent,
+    ProvisioningTarget,
+    ReconciliationRun,
+    SourceIdentity,
+)
+from .provisioning import (
+    ProvisioningError,
+    execute_action,
+    jit_review_after_days,
+    reconcile,
+    reconciliation_enabled,
+    provisioning_health,
+    retention_policy,
+    seed_targets,
+    writes_allowed,
+)
 
 
 BASE_PATH = "/automations"
+logger = logging.getLogger("support-tools")
 
 
 def database_session() -> Generator[Session, None, None]:
@@ -44,12 +68,13 @@ def database_session() -> Generator[Session, None, None]:
 def actor(request: Request) -> dict[str, str]:
     email = request.headers.get("x-auth-request-email", "").strip()
     username = request.headers.get("x-auth-request-user", "").strip()
+    groups = request.headers.get("x-auth-request-groups", "").strip()
+    allowed_group = os.getenv("SUPPORT_TOOLS_ALLOWED_GROUP", "support-admin")
     if not email and os.getenv("SUPPORT_TOOLS_DEV_AUTH_BYPASS", "false").lower() == "true":
         email = os.getenv("SUPPORT_TOOLS_DEV_USER_EMAIL", "developer@example.com")
         username = os.getenv("SUPPORT_TOOLS_DEV_USER_NAME", "Local developer")
-    if not email:
-        raise HTTPException(status_code=401, detail="Authenticated email header is missing")
-    return {"email": email, "name": username or email}
+        groups = allowed_group
+    return authorize_actor(email, username, groups, allowed_group)
 
 
 def csrf_token(request: Request) -> str:
@@ -103,15 +128,44 @@ def page_context(request: Request, current_actor: dict[str, str], **extra: Any) 
         "csrf_token": csrf_token(request),
         "base_path": BASE_PATH,
         "message": request.query_params.get("message", ""),
+        "page_section": "automations",
         **extra,
     }
 
 
+async def provisioning_scheduler() -> None:
+    interval = max(60, int(os.getenv("PROVISIONING_INTERVAL_SECONDS", "300")))
+    while True:
+        await asyncio.sleep(interval)
+        if not reconciliation_enabled():
+            continue
+        try:
+            await asyncio.to_thread(run_scheduled_reconciliation)
+        except Exception:
+            logger.exception("Scheduled identity reconciliation failed")
+
+
+def run_scheduled_reconciliation() -> None:
+    with SessionLocal() as session:
+        reconcile(session, actor="system:scheduler", trigger="scheduled")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    retention_policy()
+    jit_review_after_days()
     with SessionLocal() as session:
         seed_from_files(session)
-    yield
+        seed_targets(session)
+    task = asyncio.create_task(provisioning_scheduler())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Support Tools", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -125,10 +179,28 @@ app.mount(f"{BASE_PATH}/static", StaticFiles(directory="app/static"), name="stat
 templates = Jinja2Templates(directory="app/templates")
 
 
-@app.get(f"{BASE_PATH}/healthz")
-def health(session: Session = Depends(database_session)) -> dict[str, str]:
+def database_health(session: Session) -> dict[str, str]:
     session.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+@app.get("/internal/healthz")
+def internal_health(session: Session = Depends(database_session)) -> dict[str, str]:
+    return database_health(session)
+
+
+@app.get("/internal/readyz")
+def internal_readiness(session: Session = Depends(database_session)) -> dict[str, Any]:
+    database_health(session)
+    return provisioning_health(session)
+
+
+@app.get(f"{BASE_PATH}/healthz")
+def health(
+    session: Session = Depends(database_session),
+    _: dict[str, str] = Depends(actor),
+) -> dict[str, str]:
+    return database_health(session)
 
 
 @app.get(BASE_PATH, response_class=HTMLResponse)
@@ -155,7 +227,7 @@ def automation_new(request: Request, current_actor: dict[str, str] = Depends(act
         "schedule_time": "08:00",
         "start_offset_days": 0,
         "period_days": 1,
-        "statuses": [2, 3],
+        "statuses": ["Approved"],
         "recipients": [],
         "subject": "Employee absence summary: {{ period_label }} ({{ count }})",
         "text_template": "Employee absence summary\n{{ period_label }}\n\n{% for absence in absences %}- {{ absence.date_label }}: {{ absence.employee_name }} | {{ absence.duration }}\n{% else %}No employees are absent for this period.\n{% endfor %}",
@@ -377,3 +449,143 @@ def automation_restore(
     publish_runtime(session)
     return redirect(f"/{rule_id}/history", f"Version {revision.version} restored as version {rule.version}")
 
+
+@app.get(f"{BASE_PATH}/provisioning", response_class=HTMLResponse)
+def provisioning_dashboard(
+    request: Request,
+    session: Session = Depends(database_session),
+    current_actor: dict[str, str] = Depends(actor),
+) -> HTMLResponse:
+    targets = list(session.scalars(select(ProvisioningTarget).order_by(ProvisioningTarget.display_name)))
+    runs = list(
+        session.scalars(select(ReconciliationRun).order_by(ReconciliationRun.started_at.desc()).limit(10))
+    )
+    actions = list(
+        session.scalars(select(ProvisioningAction).order_by(ProvisioningAction.created_at.desc()).limit(50))
+    )
+    sources = {
+        source.id: source
+        for source in session.scalars(
+            select(SourceIdentity).where(SourceIdentity.id.in_([action.source_identity_id for action in actions]))
+        )
+    } if actions else {}
+    return templates.TemplateResponse(
+        request=request,
+        name="provisioning.html",
+        context=page_context(
+            request,
+            current_actor,
+            page_section="provisioning",
+            targets=targets,
+            runs=runs,
+            actions=actions,
+            sources=sources,
+            module_enabled=reconciliation_enabled(),
+            global_writes_allowed=writes_allowed(),
+        ),
+    )
+
+
+@app.post(f"{BASE_PATH}/provisioning/reconcile")
+def provisioning_reconcile(
+    request: Request,
+    csrf_token_form: str = Form(alias="csrf_token"),
+    session: Session = Depends(database_session),
+    current_actor: dict[str, str] = Depends(actor),
+):
+    verify_csrf(request, csrf_token_form)
+    try:
+        run = reconcile(session, actor=current_actor["email"], trigger="manual")
+    except ProvisioningError as exc:
+        return redirect("/provisioning", f"Reconciliation failed: {exc}")
+    except Exception as exc:
+        logger.exception("Manual identity reconciliation failed")
+        return redirect("/provisioning", f"Reconciliation failed: {exc}")
+    return redirect(
+        "/provisioning",
+        f"Run {run.id[:8]} {run.status}: {run.source_count} identities, {run.planned_count} planned",
+    )
+
+
+@app.post(f"{BASE_PATH}/provisioning/targets/{{target_id}}")
+async def provisioning_target_update(
+    target_id: str,
+    request: Request,
+    session: Session = Depends(database_session),
+    current_actor: dict[str, str] = Depends(actor),
+):
+    form = await request.form()
+    verify_csrf(request, str(form.get("csrf_token", "")))
+    target = session.get(ProvisioningTarget, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Provisioning target not found")
+    groups = [item.strip().lstrip("/") for item in str(form.get("eligibility_groups", "")).split(",") if item.strip()]
+    if not groups:
+        return redirect("/provisioning", f"{target.display_name} needs at least one eligibility group")
+    target.enabled = form.get("enabled") == "on"
+    target.dry_run = form.get("dry_run") == "on"
+    target.eligibility_groups = list(dict.fromkeys(groups))
+    target.updated_by = current_actor["email"]
+    session.add(
+        ProvisioningAuditEvent(
+            event_type="target.configuration.updated",
+            actor=current_actor["email"],
+            target_id=target.id,
+            correlation_id=secrets.token_hex(18),
+            payload={"enabled": target.enabled, "dry_run": target.dry_run, "groups": target.eligibility_groups},
+        )
+    )
+    session.commit()
+    return redirect("/provisioning", f"{target.display_name} configuration saved")
+
+
+@app.post(f"{BASE_PATH}/provisioning/actions/{{action_id}}/execute")
+async def provisioning_action_execute(
+    action_id: str,
+    request: Request,
+    session: Session = Depends(database_session),
+    current_actor: dict[str, str] = Depends(actor),
+):
+    form = await request.form()
+    verify_csrf(request, str(form.get("csrf_token", "")))
+    try:
+        action = execute_action(session, action_id, current_actor["email"], str(form.get("reason", "")))
+    except (ProvisioningError, ValueError) as exc:
+        return redirect("/provisioning", f"Action was not executed: {exc}")
+    except Exception as exc:
+        logger.exception("Provisioning action failed")
+        return redirect("/provisioning", f"Action failed safely: {exc}")
+    return redirect("/provisioning", f"Action {action.id[:8]} executed")
+
+
+@app.get(f"{BASE_PATH}/provisioning/identities/{{identity_id}}", response_class=HTMLResponse)
+def provisioning_identity_detail(
+    identity_id: int,
+    request: Request,
+    session: Session = Depends(database_session),
+    current_actor: dict[str, str] = Depends(actor),
+) -> HTMLResponse:
+    identity = session.get(SourceIdentity, identity_id)
+    if not identity:
+        raise HTTPException(status_code=404, detail="Source identity not found")
+    links = list(session.scalars(select(IdentityLink).where(IdentityLink.source_identity_id == identity.id)))
+    actions = list(
+        session.scalars(
+            select(ProvisioningAction)
+            .where(ProvisioningAction.source_identity_id == identity.id)
+            .order_by(ProvisioningAction.created_at.desc())
+            .limit(50)
+        )
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="provisioning_identity.html",
+        context=page_context(
+            request,
+            current_actor,
+            page_section="provisioning",
+            identity=identity,
+            links=links,
+            actions=actions,
+        ),
+    )

@@ -1,0 +1,14 @@
+Evidence ID: KC-E07-backup-created
+Captured UTC: 2026-09-25T15:40:25Z
+Production backup location: /home/administrator/open-support-stack/backups/keycloak-validation-20260925T154025Z
+Database archive SHA-256: 5c8530e093ea43ca16c72ae057d42a98a5711b87701d3a5998e939f1a71b3f63
+Configuration archive SHA-256: 6408cc063c55db268e783f5c42d6bf2484b3a551ecf321a6baab1a1f093e10b7
+Permissions: owner-only (umask 077 and chmod go-rwx)
+Database archive integrity: gzip test passed
+Restore status: completed successfully; see KC-E07-isolated-restore.txt
+No backup content or secret is retained in this repository.
+
+Command-level evidence
+----------------------
+- The complete creation transcript for the original keycloak-validation-20260925T154025Z backup was not retained; its recorded hashes are preserved above and are not represented as rerun output.
+- Archive hashing, integrity checks, isolated restore, migration, validation, cleanup, and production-health commands for the protected pre-upgrade remediation backup are recorded in KC-E15-backup-restore-command-transcript.txt.

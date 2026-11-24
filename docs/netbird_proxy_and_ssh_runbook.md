@@ -192,15 +192,110 @@ the Windows peer and its `/32` resource are both members of
 ### Enable Windows Local Forwarding
 
 Windows NetBird peers use the userspace router. To deliver routed traffic to a
-service on the routing peer's own LAN address, run the following in an
-elevated PowerShell window on the customer Windows Server:
+service on the routing peer's own LAN address, configure the setting as a
+machine-wide Windows environment variable. The graphical workflow is preferred
+for an interactive Windows Server setup.
+
+#### Windows GUI
+
+1. Sign in with an account that can change system settings.
+2. Open **Start**, search for **View advanced system settings**, and open it.
+3. On the **Advanced** tab, select **Environment Variables**.
+4. Under **System variables** (not **User variables**), select **New**.
+5. Enter:
+
+   ```text
+   Variable name:  NB_ENABLE_LOCAL_FORWARDING
+   Variable value: true
+   ```
+
+6. Select **OK** in every open dialog to save the setting.
+7. Open **Services** (`services.msc`), find **NetBird**, and select
+   **Restart**. If NetBird is absent, use the recovery procedure below.
+8. Wait five seconds and verify NetBird connectivity. If the service does not
+   observe the new variable after a restart, reboot Windows once.
+
+An optional elevated PowerShell check confirms that the value was saved at
+machine scope:
 
 ```powershell
-netbird service reconfigure --service-env NB_ENABLE_LOCAL_FORWARDING=true
+[Environment]::GetEnvironmentVariable(
+  "NB_ENABLE_LOCAL_FORWARDING",
+  [EnvironmentVariableTarget]::Machine
+)
+netbird status -d
+```
+
+The first command must return `true`.
+
+#### PowerShell Alternative
+
+For automated or remote administration, run the following in an elevated
+PowerShell window on the customer Windows Server:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "NB_ENABLE_LOCAL_FORWARDING",
+  "true",
+  [EnvironmentVariableTarget]::Machine
+)
 Restart-Service NetBird
 Start-Sleep -Seconds 5
 netbird status -d
 ```
+
+Machine scope is preferred on Windows Server because the NetBird daemon runs as
+a service and reads the environment when it starts. Avoid `service reconfigure`
+for this setting on Windows Server 2019: affected client versions can delete the
+service and then abort while removing a missing or inaccessible Windows Event Log
+source, leaving the service uninstalled.
+
+If `service reconfigure` has already failed with `RemoveEventLogSource failed`,
+do not delete `C:\ProgramData\netbird` and do not run `service reset-params`.
+Recover from an elevated PowerShell window:
+
+```powershell
+$netbird = (Get-Command netbird.exe -ErrorAction Stop).Source
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+Copy-Item -LiteralPath "C:\ProgramData\netbird" `
+  -Destination "C:\ProgramData\netbird-backup-$stamp" -Recurse -Force
+
+[Environment]::SetEnvironmentVariable(
+  "NB_ENABLE_LOCAL_FORWARDING",
+  "true",
+  [EnvironmentVariableTarget]::Machine
+)
+
+if (-not (Get-Service NetBird -ErrorAction SilentlyContinue)) {
+  & $netbird service install
+  if ($LASTEXITCODE -ne 0) {
+    throw "NetBird service installation failed with exit code $LASTEXITCODE"
+  }
+}
+
+Start-Service NetBird
+Start-Sleep -Seconds 5
+Get-Service NetBird
+& $netbird status -d
+```
+
+If installation alone reports that the Event Log source already exists, remove
+only the stale source key and retry installation. Do not remove NetBird's state
+directory:
+
+```powershell
+$eventSource = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Application\NetBird"
+if (Test-Path $eventSource) {
+  Remove-Item -LiteralPath $eventSource -Recurse -Force
+}
+& $netbird service install
+Start-Service NetBird
+```
+
+If Windows reports that the service is marked for deletion, reboot the server
+once and repeat the installation block. The peer profile under
+`C:\ProgramData\netbird` should be reused, so a new setup key is normally not
+required.
 
 This setting is not required when connecting directly to the server's
 `100.x` NetBird address. It is required for this Windows self-access path:
@@ -221,8 +316,18 @@ Firewall must permit the selected service port.
 
 To remove local forwarding later:
 
+1. Open **Advanced system settings -> Environment Variables**.
+2. Under **System variables**, delete `NB_ENABLE_LOCAL_FORWARDING`.
+3. Restart the **NetBird** service from `services.msc`.
+
+The equivalent elevated PowerShell commands are:
+
 ```powershell
-netbird service reconfigure --service-env NB_ENABLE_LOCAL_FORWARDING=false
+[Environment]::SetEnvironmentVariable(
+  "NB_ENABLE_LOCAL_FORWARDING",
+  $null,
+  [EnvironmentVariableTarget]::Machine
+)
 Restart-Service NetBird
 ```
 

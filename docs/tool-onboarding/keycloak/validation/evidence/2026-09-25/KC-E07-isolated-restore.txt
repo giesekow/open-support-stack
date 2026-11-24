@@ -1,0 +1,34 @@
+Evidence ID: KC-E07-isolated-restore
+Captured UTC: 2026-09-25T15:52:00Z
+Environment: production backup restored to an isolated Docker network
+
+Protected pre-test production backup retained:
+- Database SHA-256: 5c8530e093ea43ca16c72ae057d42a98a5711b87701d3a5998e939f1a71b3f63
+- Configuration SHA-256: 6408cc063c55db268e783f5c42d6bf2484b3a551ecf321a6baab1a1f093e10b7
+- Owner-only permissions and gzip integrity verified.
+
+Restore-validation backup:
+- Transient database archive SHA-256: 1c84ed8c69690d5683a3be0632c88dfbe49401da1f366d6217fb57dbbc228b4b
+- Gzip integrity: passed
+- Synthetic user, group, role, and confidential client were captured, then removed from production before restore.
+
+Isolated restore results:
+- support realm count: 1
+- synthetic user count: 1
+- synthetic group count: 1
+- synthetic role count: 1
+- synthetic client count: 1
+- OIDC discovery: HTTP 200
+- Controlled login with restored confidential-client secret: HTTP 200
+- Host-published ports: none
+
+Postconditions:
+- Isolated containers and network remaining: 0
+- Restore-only production users and clients remaining: 0
+- Transient restore archive removed; protected baseline backup retained.
+- No password, token, client secret, or backup content is retained in this repository.
+
+Command-level evidence
+----------------------
+- The complete transcript for the original synthetic-object restore was not retained; the historical result above is not reconstructed.
+- A fresh isolated restore of the protected pre-upgrade production database, including hash and integrity checks, schema migration, discovery, administrative realm retrieval, no-port assertion, cleanup, and production-health verification, is recorded in KC-E15-backup-restore-command-transcript.txt.

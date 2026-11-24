@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ identity.email or identity.username }} | Provisioning{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">Source identity</p><h1>{{ identity.email or identity.username }}</h1><p>{{ identity.first_name }} {{ identity.last_name }}</p></div>
+  <a class="button ghost" href="{{ base_path }}/provisioning">Back to provisioning</a>
+</div>
+<section class="panel identity-facts">
+  <dl>
+    <div><dt>Issuer</dt><dd>{{ identity.issuer }}</dd></div>
+    <div><dt>Subject</dt><dd><code>{{ identity.subject }}</code></dd></div>
+    <div><dt>Username</dt><dd>{{ identity.username }}</dd></div>
+    <div><dt>Email verified</dt><dd>{{ 'Yes' if identity.email_verified else 'No' }}</dd></div>
+    <div><dt>Enabled</dt><dd>{{ 'Yes' if identity.enabled and not identity.deleted_at else 'No' }}</dd></div>
+    <div><dt>Groups</dt><dd>{{ identity.groups|join(', ') or 'None' }}</dd></div>
+    <div><dt>Last seen</dt><dd>{{ identity.last_seen_at.strftime('%d %b %Y, %H:%M:%S') }}</dd></div>
+  </dl>
+</section>
+<section class="section-head"><div><p class="eyebrow">Durable mapping</p><h2>Linked accounts</h2></div></section>
+<div class="rule-grid">
+{% for link in links %}
+  <article class="rule-card"><div class="rule-top"><span class="status state-{{ link.state }}">{{ link.state }}</span><span>{{ link.target_id }}</span></div><h3>{{ link.target_username or link.target_account_id }}</h3><p class="rule-id">account {{ link.target_account_id }}</p></article>
+{% else %}
+  <div class="empty"><h3>No linked accounts</h3><p>JIT targets may remain pending until first login.</p></div>
+{% endfor %}
+</div>
+<section class="section-head"><div><p class="eyebrow">History</p><h2>Identity actions</h2></div></section>
+<div class="timeline">
+{% for action in actions %}
+  <article class="revision"><div><span class="status state-{{ action.status }}">{{ action.status }}</span><strong>{{ action.target_id }}</strong></div><div><b>{{ action.action }}</b><p>{{ action.details.get('reason') or action.reason or '' }}</p></div><time>{{ action.created_at.strftime('%d %b %Y, %H:%M') }}</time></article>
+{% else %}<div class="empty">No actions recorded.</div>{% endfor %}
+</div>
+{% endblock %}

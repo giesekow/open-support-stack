@@ -1,0 +1,140 @@
+Evidence ID: KC-E16
+Captured UTC: 2026-09-25T19:59:27Z
+Executed entry command: `ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/validate_keycloak_sync_idempotency.sh .env > /tmp/KC-E16-sync-command-transcript.txt 2>&1'`
+Evidence script: `scripts/validate_keycloak_sync_idempotency.sh`
+Evidence script SHA-256: `792ac389c8123dfa58f28d821f090bd00e57e9b2bdc617d02f2c4959a4a0cc5f`
+Result: PASSED
+Environment: production support realm
+Redaction: administrator credentials and internal object IDs are excluded.
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak kcadm.sh config credentials --server http://localhost:8080 --realm master --user <ADMIN_USER> --password <REDACTED>
+Exit code: 0
+
+$ capture normalized managed-client state before synchronization
+
+
+
+
+
+
+
+
+
+
+captured_clients=10
+before_sha256=9250908907c8fc5bec83737673eefe685e84550352dca66ee02a7d18abb8f7b1
+
+$ ./scripts/sync_keycloak_redirects.sh <ENV_FILE>
+==> Login to Keycloak admin API
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+==> Updating redirect URIs/web origins for client 'support-portal'
+==> Updating redirect URIs/web origins for client 'guacamole'
+==> Updating redirect URIs/web origins for client 'bookstack'
+==> Updating redirect URIs/web origins for client 'osticket'
+==> Updating redirect URIs/web origins for client 'espocrm'
+==> Updating redirect URIs/web origins for client 'orangehrm'
+==> Updating redirect URIs/web origins for client 'erpnext'
+==> Updating redirect URIs/web origins for client 'seafile'
+==> Updating redirect URIs/web origins for client 'penpot'
+==> Updating redirect URIs/web origins for client 'netbird'
+Done. Client 'support-portal' now allows:
+  - https://internal-support.bonescreen.de/oauth2/callback
+  - post logout redirect: https://internal-support.bonescreen.de/
+Done. Client 'guacamole' now allows:
+  - https://remote.internal-support.bonescreen.de/guacamole/
+Done. Client 'bookstack' now allows:
+  - https://docs.internal-support.bonescreen.de/oidc/callback
+Done. Client 'osticket' now allows:
+  - https://tickets.internal-support.bonescreen.de/api/auth/oauth2
+Done. Client 'espocrm' now allows:
+  - https://crm.internal-support.bonescreen.de/oauth-callback.php
+Done. Client 'orangehrm' now allows:
+  - https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials
+Done. Client 'erpnext' now allows:
+  - https://erp.internal-support.bonescreen.de/api/method/frappe.integrations.oauth2_logins.login_via_keycloak
+Done. Client 'seafile' now allows:
+  - https://files.internal-support.bonescreen.de/oauth/callback/
+Done. Client 'penpot' now allows:
+  - https://penpot.internal-support.bonescreen.de/api/auth/oidc/callback
+Done. Client 'netbird' now allows:
+  - https://mesh.internal-support.bonescreen.de/oauth2/callback/keycloak-daohd4p1qqbc73bvu0ig
+  - post logout redirect: https://mesh.internal-support.bonescreen.de/oauth2/logout/callback
+Exit code: 0
+
+$ capture normalized managed-client state after synchronization run 1
+
+
+
+
+
+
+
+
+
+
+captured_clients=10
+after_run_1_sha256=9250908907c8fc5bec83737673eefe685e84550352dca66ee02a7d18abb8f7b1
+
+$ ./scripts/sync_keycloak_redirects.sh <ENV_FILE>
+==> Login to Keycloak admin API
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+==> Updating redirect URIs/web origins for client 'support-portal'
+==> Updating redirect URIs/web origins for client 'guacamole'
+==> Updating redirect URIs/web origins for client 'bookstack'
+==> Updating redirect URIs/web origins for client 'osticket'
+==> Updating redirect URIs/web origins for client 'espocrm'
+==> Updating redirect URIs/web origins for client 'orangehrm'
+==> Updating redirect URIs/web origins for client 'erpnext'
+==> Updating redirect URIs/web origins for client 'seafile'
+==> Updating redirect URIs/web origins for client 'penpot'
+==> Updating redirect URIs/web origins for client 'netbird'
+Done. Client 'support-portal' now allows:
+  - https://internal-support.bonescreen.de/oauth2/callback
+  - post logout redirect: https://internal-support.bonescreen.de/
+Done. Client 'guacamole' now allows:
+  - https://remote.internal-support.bonescreen.de/guacamole/
+Done. Client 'bookstack' now allows:
+  - https://docs.internal-support.bonescreen.de/oidc/callback
+Done. Client 'osticket' now allows:
+  - https://tickets.internal-support.bonescreen.de/api/auth/oauth2
+Done. Client 'espocrm' now allows:
+  - https://crm.internal-support.bonescreen.de/oauth-callback.php
+Done. Client 'orangehrm' now allows:
+  - https://hr.internal-support.bonescreen.de/web/index.php/openidauth/openIdCredentials
+Done. Client 'erpnext' now allows:
+  - https://erp.internal-support.bonescreen.de/api/method/frappe.integrations.oauth2_logins.login_via_keycloak
+Done. Client 'seafile' now allows:
+  - https://files.internal-support.bonescreen.de/oauth/callback/
+Done. Client 'penpot' now allows:
+  - https://penpot.internal-support.bonescreen.de/api/auth/oidc/callback
+Done. Client 'netbird' now allows:
+  - https://mesh.internal-support.bonescreen.de/oauth2/callback/keycloak-daohd4p1qqbc73bvu0ig
+  - post logout redirect: https://mesh.internal-support.bonescreen.de/oauth2/logout/callback
+Exit code: 0
+
+$ capture normalized managed-client state after synchronization run 2
+
+
+
+
+
+
+
+
+
+
+captured_clients=10
+after_run_2_sha256=9250908907c8fc5bec83737673eefe685e84550352dca66ee02a7d18abb8f7b1
+
+$ cmp -s <BEFORE_STATE> <AFTER_RUN_1_STATE>
+Exit code: 0; run 1 made no unapproved state change
+
+$ cmp -s <AFTER_RUN_1_STATE> <AFTER_RUN_2_STATE>
+Exit code: 0; run 2 is idempotent
+Temporary local evidence files remaining: 0
+Overall result: PASSED
+
+Post-capture cleanup
+--------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'rm -f /tmp/KC-E15-backup-restore-command-transcript.txt /tmp/KC-E16-sync-command-transcript.txt && test ! -e /tmp/KC-E15-backup-restore-command-transcript.txt && test ! -e /tmp/KC-E16-sync-command-transcript.txt && echo remote_transcript_files_remaining=0'
+remote_transcript_files_remaining=0

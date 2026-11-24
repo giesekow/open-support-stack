@@ -14,7 +14,8 @@
     </a>
     <nav>
       <a href="/">Portal</a>
-      <a class="active" href="{{ base_path }}">Automations</a>
+      <a class="{{ 'active' if page_section == 'automations' else '' }}" href="{{ base_path }}">Automations</a>
+      <a class="{{ 'active' if page_section == 'provisioning' else '' }}" href="{{ base_path }}/provisioning">Provisioning</a>
       <span class="identity">{{ actor.name }}</span>
     </nav>
   </header>
@@ -24,4 +25,3 @@
   </main>
 </body>
 </html>
-

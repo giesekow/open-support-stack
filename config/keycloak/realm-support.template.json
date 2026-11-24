@@ -7,11 +7,46 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": true,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "smtpServer": {
+    "host": "__SMTP_HOST__",
+    "port": "__SMTP_PORT__",
+    "from": "__SMTP_FROM__",
+    "fromDisplayName": "__SMTP_FROM_NAME__",
+    "auth": "__SMTP_AUTH__",
+    "user": "__SMTP_USER__",
+    "password": "__SMTP_PASS__",
+    "starttls": "__SMTP_STARTTLS__",
+    "ssl": "__SMTP_SSL__"
+  },
+  "requiredActions": [
+    { "alias": "TERMS_AND_CONDITIONS", "name": "Terms and Conditions", "providerId": "TERMS_AND_CONDITIONS", "enabled": false, "defaultAction": false, "priority": 20, "config": {} },
+    { "alias": "UPDATE_PROFILE", "name": "Update Profile", "providerId": "UPDATE_PROFILE", "enabled": true, "defaultAction": false, "priority": 40, "config": {} },
+    { "alias": "VERIFY_EMAIL", "name": "Verify Email", "providerId": "VERIFY_EMAIL", "enabled": true, "defaultAction": false, "priority": 50, "config": {} },
+    { "alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": false, "priority": 54, "config": {} },
+    { "alias": "UPDATE_PASSWORD", "name": "Update Password", "providerId": "UPDATE_PASSWORD", "enabled": true, "defaultAction": false, "priority": 57, "config": {} },
+    { "alias": "delete_account", "name": "Delete Account", "providerId": "delete_account", "enabled": false, "defaultAction": false, "priority": 60, "config": {} },
+    { "alias": "webauthn-register", "name": "Webauthn Register", "providerId": "webauthn-register", "enabled": true, "defaultAction": false, "priority": 70, "config": {} },
+    { "alias": "webauthn-register-passwordless", "name": "Webauthn Register Passwordless", "providerId": "webauthn-register-passwordless", "enabled": true, "defaultAction": false, "priority": 80, "config": {} },
+    { "alias": "VERIFY_PROFILE", "name": "Verify Profile", "providerId": "VERIFY_PROFILE", "enabled": true, "defaultAction": false, "priority": 90, "config": {} },
+    { "alias": "delete_credential", "name": "Delete Credential", "providerId": "delete_credential", "enabled": true, "defaultAction": false, "priority": 100, "config": {} },
+    { "alias": "idp_link", "name": "Linking Identity Provider", "providerId": "idp_link", "enabled": true, "defaultAction": false, "priority": 120, "config": {} },
+    { "alias": "update_user_locale", "name": "Update User Locale", "providerId": "update_user_locale", "enabled": true, "defaultAction": false, "priority": 1000, "config": {} }
+  ],
   "roles": {
     "realm": [
       { "name": "platform-admin", "description": "Platform administrators" },
+      { "name": "support-admin", "description": "Support Tools administrators" },
       { "name": "support-engineer", "description": "Support engineers" },
-      { "name": "auditor", "description": "Read-only auditors" }
+      { "name": "auditor", "description": "Read-only auditors" },
+      { "name": "employees", "description": "Baseline application login eligibility, including Frappe HR" }
     ]
   },
   "groups": [
@@ -20,15 +55,50 @@
       "realmRoles": ["platform-admin"]
     },
     {
+      "name": "support-admin",
+      "realmRoles": ["support-admin"]
+    },
+    {
       "name": "support-engineer",
       "realmRoles": ["support-engineer"]
     },
     {
       "name": "auditor",
       "realmRoles": ["auditor"]
+    },
+    {
+      "name": "employees",
+      "realmRoles": ["employees"]
+    },
+    {
+      "name": "app-netbird"
+    },
+    {
+      "name": "app-guacamole"
+    },
+    {
+      "name": "app-osticket-agent"
+    },
+    {
+      "name": "app-vaultwarden"
     }
   ],
   "clients": [
+    {
+      "clientId": "support-tools-provisioning",
+      "name": "Support Tools Provisioning",
+      "description": "Read-only service account used for identity reconciliation",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__PROVISIONING_KEYCLOAK_CLIENT_SECRET__",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false
+    },
     {
       "clientId": "guacamole",
       "name": "Guacamole",
@@ -41,12 +111,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__REMOTE_HOST__/guacamole/*",
-        "http://__REMOTE_HOST__/guacamole/*"
+        "https://__REMOTE_HOST__/guacamole/"
       ],
       "webOrigins": [
-        "https://__REMOTE_HOST__",
-        "http://__REMOTE_HOST__"
+        "https://__REMOTE_HOST__"
       ]
     },
     {
@@ -60,12 +128,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__DOCS_HOST__/*",
-        "http://__DOCS_HOST__/*"
+        "https://__DOCS_HOST__/oidc/callback"
       ],
       "webOrigins": [
-        "https://__DOCS_HOST__",
-        "http://__DOCS_HOST__"
+        "https://__DOCS_HOST__"
       ]
     },
     {
@@ -100,6 +166,21 @@
       ],
       "webOrigins": [
         "https://__SUPPORT_HOST__"
+      ],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
       ]
     },
     {
@@ -113,12 +194,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__TICKETS_HOST__/*",
-        "http://__TICKETS_HOST__/*"
+        "https://__TICKETS_HOST__/api/auth/oauth2"
       ],
       "webOrigins": [
-        "https://__TICKETS_HOST__",
-        "http://__TICKETS_HOST__"
+        "https://__TICKETS_HOST__"
       ]
     },
     {
@@ -132,31 +211,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__CRM_HOST__/*",
-        "http://__CRM_HOST__/*"
+        "https://__CRM_HOST__/oauth-callback.php"
       ],
       "webOrigins": [
-        "https://__CRM_HOST__",
-        "http://__CRM_HOST__"
-      ]
-    },
-    {
-      "clientId": "orangehrm",
-      "name": "OrangeHRM",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": false,
-      "secret": "__ORANGEHRM_OIDC_CLIENT_SECRET__",
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "redirectUris": [
-        "https://__HR_HOST__/*",
-        "http://__HR_HOST__/*"
-      ],
-      "webOrigins": [
-        "https://__HR_HOST__",
-        "http://__HR_HOST__"
+        "https://__CRM_HOST__"
       ]
     },
     {
@@ -170,12 +228,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__ERP_HOST__/*",
-        "http://__ERP_HOST__/*"
+        "https://__ERP_HOST__/api/method/frappe.integrations.oauth2_logins.login_via_keycloak"
       ],
       "webOrigins": [
-        "https://__ERP_HOST__",
-        "http://__ERP_HOST__"
+        "https://__ERP_HOST__"
       ]
     },
     {
@@ -189,12 +245,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__FILES_HOST__/*",
-        "http://__FILES_HOST__/*"
+        "https://__FILES_HOST__/oauth/callback/"
       ],
       "webOrigins": [
-        "https://__FILES_HOST__",
-        "http://__FILES_HOST__"
+        "https://__FILES_HOST__"
       ]
     },
     {
@@ -208,13 +262,10 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__PENPOT_HOST__/api/auth/oidc/callback",
-        "https://__PENPOT_HOST__/*",
-        "http://__PENPOT_HOST__/*"
+        "https://__PENPOT_HOST__/api/auth/oidc/callback"
       ],
       "webOrigins": [
-        "https://__PENPOT_HOST__",
-        "http://__PENPOT_HOST__"
+        "https://__PENPOT_HOST__"
       ]
     },
     {
@@ -228,7 +279,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "https://__NETBIRD_HOST__/oauth2/callback/*"
+        "__NETBIRD_OIDC_REDIRECT_URI__"
       ],
       "webOrigins": [
         "https://__NETBIRD_HOST__"
@@ -240,10 +291,11 @@
         {
           "name": "groups",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-group-membership-mapper",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
           "consentRequired": false,
           "config": {
-            "full.path": "false",
+            "claim.value": "[\"app-netbird\"]",
+            "jsonType.label": "JSON",
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true",

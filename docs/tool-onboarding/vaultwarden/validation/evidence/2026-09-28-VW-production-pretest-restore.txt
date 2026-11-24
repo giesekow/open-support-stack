@@ -1,0 +1,35 @@
+restore_started_utc=20260928T084100Z
+safety_backup=backups/vaultwarden-pre-restore-20260928T084100Z
+target_snapshot=backups/vaultwarden-validation-20260925T212929Z/db.sqlite3
+Backup to 'data/<ONLINE_BACKUP_FILE>' was successful
+before_resume=Up 6 days (healthy)
+700 administrator:administrator /home/administrator/open-support-stack/backups/vaultwarden-pre-restore-20260928T084100Z
+600 administrator:administrator /home/administrator/open-support-stack/backups/vaultwarden-pre-restore-20260928T084100Z/data-files.tar.gz
+600 administrator:administrator /home/administrator/open-support-stack/backups/vaultwarden-pre-restore-20260928T084100Z/db.sqlite3
+safety_backup_integrity=ok
+safety_users_count=5
+safety_organizations_count=1
+safety_collections_count=1
+safety_ciphers_count=24
+safety_users_organizations_count=1
+f9548b7ce93cf5b5b39771ff772be84d2659ccd91de519a3d18f34558d04ca8f  /home/administrator/open-support-stack/backups/vaultwarden-pre-restore-20260928T084100Z/db.sqlite3
+4c90dfd38f5ffadf350106242be88365ed6a844471d8aeaff08cdda48dec0e42  /home/administrator/open-support-stack/backups/vaultwarden-pre-restore-20260928T084100Z/data-files.tar.gz
+restore_resume_utc=20260928T084258Z
+stopping_vaultwarden
+restoring_verified_snapshot
+starting_vaultwarden
+verification_utc=20260928T084514Z
+NAME                  IMAGE                       COMMAND       SERVICE       CREATED      STATUS                   PORTS
+support-vaultwarden   vaultwarden/server:1.37.2   "/start.sh"   vaultwarden   6 days ago   Up 2 minutes (healthy)   80/tcp
+restored_integrity_check=ok
+restored_users_count=1
+restored_organizations_count=1
+restored_collections_count=1
+restored_ciphers_count=21
+restored_users_organizations_count=1
+public_health_http=200
+restore_result=PASSED
+remaining_container=0
+remaining_volume=0
+remaining_network=0
+production=support-vaultwarden Up 2 minutes (healthy)

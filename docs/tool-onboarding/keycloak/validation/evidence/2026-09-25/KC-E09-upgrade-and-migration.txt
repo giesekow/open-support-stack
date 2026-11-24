@@ -1,0 +1,34 @@
+Evidence ID: KC-E09
+Captured UTC: 2026-09-25T18:51:00Z
+Environment: production support stack
+
+Pre-change controls:
+- Protected configuration, Keycloak PostgreSQL, and OrangeHRM database backups created before migration.
+- Backup directory: backups/keycloak-remediation-20260925T185105Z
+- Configuration backup SHA-256: bcae4275e6bf4ed9a5ed1d61831ec1ae021bf3499e765c59a7fb87897baf10f1
+- Keycloak database backup SHA-256: 7a9c276ad8f7cf66e3389aae4e8f35c284c59f9cd0072656561efa3592945a53
+- OrangeHRM database backup SHA-256: 9e4eb42f16cc8e46004a19630d117dc3937fae346035dbea9e62b2840908c36d
+- Backup integrity checks passed and owner-only permissions were applied.
+
+Migration rehearsal:
+- A prior protected production backup was restored into an isolated database and network.
+- Keycloak 26.7.4 completed schema migration and returned discovery HTTP 200.
+- Existing administrative login and support-realm retrieval succeeded.
+- No host ports were published; rehearsal resources were removed after execution.
+
+Production result:
+- Keycloak runtime: 26.7.4
+- Runtime profile: prod
+- Immutable image: quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+- Database migration from 25.x to 26.7 completed successfully.
+- Public OIDC discovery returned HTTP 200.
+- Accidental placeholder realm removed after backup.
+
+Rollback note:
+- Database schema migration is not reversed by selecting the old image. Rollback requires stopping Keycloak and restoring both the pre-change database and matching configuration backup before starting the former image.
+
+Command-level evidence
+----------------------
+- The complete transcript of the original production upgrade was not retained; it is not reconstructed.
+- The protected pre-upgrade backup hashes, archive integrity, isolated 25.x-to-26.7.4 schema migration, discovery, realm retrieval, no-port assertion, cleanup, and production-health commands with responses are recorded in KC-E15-backup-restore-command-transcript.txt.
+- The resulting production runtime, immutable image digest, profile, service state, and discovery commands with responses are recorded in KC-E13-current-state-command-transcript.txt.

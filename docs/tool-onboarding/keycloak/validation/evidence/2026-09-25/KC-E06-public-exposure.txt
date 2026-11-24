@@ -1,0 +1,23 @@
+Evidence ID: KC-E06-public-exposure
+Captured UTC: 2026-09-25T15:40:04Z
+--- HTTPS discovery response ---
+{"issuer":"https://sso.internal-support.bonescreen.de/realms/support"
+"authorization_endpoint":"https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/auth"
+"token_endpoint":"https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token"
+"jwks_uri":"https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/certs"
+"mtls_endpoint_aliases":{"token_endpoint":"https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token"
+--- HTTP response headers ---
+HTTP/1.0 503 Service Unavailable
+cache-control: no-cache
+content-type: text/html
+
+--- TLS verification summary ---
+subject=CN = internal-support.bonescreen.de
+issuer=C = US, O = Let's Encrypt, CN = YR1
+Verification: OK
+Verify return code: 0 (ok)
+
+Command-level evidence
+----------------------
+- The original summary did not retain every complete command.
+- OIDC discovery, HTTP behavior, TLS verification, runtime profile, startup command, port exposure, and service-state commands were rerun and are recorded with responses in KC-E13-current-state-command-transcript.txt.

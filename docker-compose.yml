@@ -13,7 +13,7 @@ services:
       - backend
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c}
     container_name: support-keycloak
     restart: unless-stopped
     depends_on:
@@ -32,11 +32,12 @@ services:
       KC_DB_URL_DATABASE: ${KEYCLOAK_DB_NAME}
       KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      KC_HEALTH_ENABLED: "true"
     volumes:
-      - ./config/keycloak:/opt/keycloak/data/import:ro
+      - ./config/keycloak/realm-support.json:/opt/keycloak/data/import/realm-support.json:ro
     networks:
       - backend
 
@@ -44,6 +45,16 @@ services:
     image: vaultwarden/server:1.37.2
     container_name: support-vaultwarden
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -z "$${SMTP_USERNAME:-}" ]; then
+        unset SMTP_USERNAME SMTP_PASSWORD SMTP_AUTH_MECHANISM;
+        fi &&
+        cat /etc/ssl/certs/ca-certificates.crt /custom-certs/support-stack-ca.crt
+        > /tmp/support-stack-ca-bundle.crt &&
+        export SSL_CERT_FILE=/tmp/support-stack-ca-bundle.crt &&
+        exec /start.sh
     environment:
       DOMAIN: ${VAULTWARDEN_DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED}
@@ -57,9 +68,15 @@ services:
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Vaultwarden}
       SMTP_USERNAME: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASS:-}
-      SMTP_AUTH_MECHANISM: ${SMTP_AUTH_MECHANISM:-Login}
+      # The startup command removes empty SMTP auth variables for no-auth servers.
+      SMTP_AUTH_MECHANISM: ${SMTP_AUTH_MECHANISM-}
     volumes:
       - vaultwarden-data:/data
+      - ./nginx/certs/support-stack-ca.crt:/custom-certs/support-stack-ca.crt:ro
+    extra_hosts:
+      # In HTTP-only nginx deployments, send OIDC HTTPS discovery through the
+      # TLS-terminating reverse proxy instead of nginx's Docker DNS alias.
+      - "${SSO_HOST:-sso.example.com}:${SSO_INTERNAL_PROXY_IP:-host-gateway}"
     networks:
       - backend
 
@@ -91,7 +108,7 @@ services:
       - backend
 
   bookstack:
-    image: lscr.io/linuxserver/bookstack:latest
+    image: ${BOOKSTACK_IMAGE:-lscr.io/linuxserver/bookstack@sha256:c9eee56c8beb181d8e53ea616be1537f2c65f394d7e7fb19c90e7059dc7670d6}
     container_name: support-bookstack
     restart: unless-stopped
     depends_on:
@@ -120,6 +137,8 @@ services:
       OIDC_USERINFO_ENDPOINT: ${BOOKSTACK_OIDC_USERINFO_ENDPOINT}
       OIDC_PUBLIC_KEY: ${BOOKSTACK_OIDC_PUBLIC_KEY}
       OIDC_END_SESSION_ENDPOINT: ${BOOKSTACK_OIDC_END_SESSION_ENDPOINT}
+      BOOKSTACK_DEFAULT_REGISTRATION_ROLE: ${BOOKSTACK_DEFAULT_REGISTRATION_ROLE:-Viewer}
+      SESSION_DRIVER: ${BOOKSTACK_SESSION_DRIVER:-database}
     volumes:
       - bookstack-data:/config
       - ./nginx/certs:/custom-certs:ro
@@ -198,10 +217,18 @@ services:
     image: ${NETBIRD_SERVER_IMAGE:-netbirdio/netbird-server@sha256:d1da0c0179c9e6f2ab7b48be54d06341b11037855a9426b9f2536aa79f13360b}
     container_name: support-netbird-server
     restart: unless-stopped
-    command: ["--config", "/etc/netbird/config.yaml"]
+    entrypoint: ["/usr/bin/sh", "-c"]
+    command:
+      - >-
+        cat /etc/ssl/certs/ca-certificates.crt /etc/netbird/support-stack-ca.crt
+        > /tmp/netbird-ca-bundle.crt &&
+        exec /go/bin/netbird-server --config /etc/netbird/config.yaml
+    environment:
+      SSL_CERT_FILE: /tmp/netbird-ca-bundle.crt
     volumes:
       - netbird-data:/var/lib/netbird
       - ./config/netbird/config.yaml:/etc/netbird/config.yaml:ro
+      - ./nginx/certs/support-stack-ca.crt:/etc/netbird/support-stack-ca.crt:ro
     ports:
       - "${NETBIRD_STUN_PORT:-3478}:3478/udp"
     extra_hosts:
@@ -256,7 +283,7 @@ services:
       - backend
 
   espocrm:
-    image: espocrm/espocrm:latest
+    image: ${ESPOCRM_IMAGE:-espocrm/espocrm@sha256:8b38e9ec6a7caaee6744ad247a44a0f4f23729c2efe379e68f1203439d3ff319}
     container_name: support-espocrm
     restart: unless-stopped
     depends_on:
@@ -271,59 +298,23 @@ services:
       ESPOCRM_ADMIN_USERNAME: ${ESPOCRM_ADMIN_USERNAME}
       ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD}
       ESPOCRM_LANGUAGE: ${ESPOCRM_LANGUAGE}
+      ESPOCRM_CONFIG_AUTHENTICATION_METHOD: Oidc
+      ESPOCRM_CONFIG_OIDC_CLIENT_ID: ${ESPOCRM_OIDC_CLIENT_ID}
+      ESPOCRM_CONFIG_OIDC_CLIENT_SECRET: ${ESPOCRM_OIDC_CLIENT_SECRET}
+      ESPOCRM_CONFIG_OIDC_AUTHORIZATION_ENDPOINT: https://${SSO_HOST}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      ESPOCRM_CONFIG_OIDC_TOKEN_ENDPOINT: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      ESPOCRM_CONFIG_OIDC_USER_INFO_ENDPOINT: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo
+      ESPOCRM_CONFIG_OIDC_JWKS_ENDPOINT: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      ESPOCRM_CONFIG_OIDC_USERNAME_CLAIM: sub
+      ESPOCRM_CONFIG_OIDC_CREATE_USER: "true"
+      ESPOCRM_CONFIG_OIDC_SYNC: "true"
+      ESPOCRM_CONFIG_OIDC_SYNC_TEAMS: "false"
+      ESPOCRM_CONFIG_OIDC_AUTHORIZATION_PROMPT: login
+      ESPOCRM_CONFIG_OIDC_FALLBACK: "true"
+      ESPOCRM_CONFIG_OIDC_ALLOW_REGULAR_USER_FALLBACK: "false"
+      ESPOCRM_CONFIG_OIDC_ALLOW_ADMIN_USER: "false"
     volumes:
       - espocrm-data:/var/www/html
-    networks:
-      - backend
-
-  orangehrm-db:
-    image: mariadb:11.4
-    container_name: support-orangehrm-db
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${ORANGEHRM_DB_NAME}
-      MYSQL_USER: ${ORANGEHRM_DB_USER}
-      MYSQL_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
-    volumes:
-      - orangehrm-db-data:/var/lib/mysql
-    networks:
-      - backend
-
-  orangehrm:
-    image: orangehrm/orangehrm:5.8.1
-    container_name: support-orangehrm
-    restart: unless-stopped
-    depends_on:
-      - orangehrm-db
-      - keycloak
-    environment:
-      ORANGEHRM_DATABASE_HOST: orangehrm-db
-      ORANGEHRM_DATABASE_PORT: 3306
-      ORANGEHRM_DATABASE_NAME: ${ORANGEHRM_DB_NAME}
-      ORANGEHRM_DATABASE_USER: ${ORANGEHRM_DB_USER}
-      ORANGEHRM_DATABASE_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
-      ORANGEHRM_DATABASE_ADMIN_USER: root
-      ORANGEHRM_DATABASE_ADMIN_PASSWORD: ${ORANGEHRM_DB_ROOT_PASSWORD}
-      ORANGEHRM_ADMIN_USERNAME: ${ORANGEHRM_ADMIN_USERNAME}
-      ORANGEHRM_ADMIN_PASSWORD: ${ORANGEHRM_ADMIN_PASSWORD}
-      ORANGEHRM_ADMIN_FIRSTNAME: ${ORANGEHRM_ADMIN_FIRSTNAME}
-      ORANGEHRM_ADMIN_LASTNAME: ${ORANGEHRM_ADMIN_LASTNAME}
-      ORANGEHRM_ADMIN_EMAIL: ${ORANGEHRM_ADMIN_EMAIL}
-      ORANGEHRM_OIDC_INTERNAL_BASE_URI: ${ORANGEHRM_OIDC_INTERNAL_BASE_URI:-http://keycloak:8080/realms/support}
-    command: >
-      /bin/sh -c '
-      set -eu;
-      if [ -f /usr/local/share/ca-certificates/support-stack-ca.crt ]; then
-        update-ca-certificates >/dev/null 2>&1 || true;
-      fi;
-      php /usr/local/bin/patch-orangehrm-oidc.php;
-      exec apache2-foreground
-      '
-    volumes:
-      - orangehrm-data:/var/www/html
-      - ./nginx/certs/support-stack-ca.crt:/usr/local/share/ca-certificates/support-stack-ca.crt:ro
-      - ./config/orangehrm/patch-oidc-internal-endpoints.php:/usr/local/bin/patch-orangehrm-oidc.php:ro
     networks:
       - backend
 
@@ -358,12 +349,90 @@ services:
       DATABASE_URL: postgresql+psycopg://${SUPPORT_TOOLS_DB_USER}:${SUPPORT_TOOLS_DB_PASSWORD}@support-tools-db:5432/${SUPPORT_TOOLS_DB_NAME}
       SUPPORT_TOOLS_SESSION_SECRET: ${SUPPORT_TOOLS_SESSION_SECRET}
       SUPPORT_TOOLS_COOKIE_SECURE: ${SUPPORT_TOOLS_COOKIE_SECURE:-true}
+      SUPPORT_TOOLS_ALLOWED_GROUP: ${SUPPORT_TOOLS_ALLOWED_GROUP:-support-admin}
       SUPPORT_TOOLS_DEV_AUTH_BYPASS: ${SUPPORT_TOOLS_DEV_AUTH_BYPASS:-false}
       SUPPORT_TOOLS_DEV_USER_EMAIL: ${SUPPORT_TOOLS_DEV_USER_EMAIL:-developer@example.com}
       SUPPORT_TOOLS_DEV_USER_NAME: ${SUPPORT_TOOLS_DEV_USER_NAME:-Local developer}
       SUPPORT_TOOLS_RUNTIME_DIR: /runtime
       SUPPORT_TOOLS_SEED_DIR: /seed
-      ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT: ${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT:-${ORANGEHRM_ADMIN_EMAIL}}
+      PROVISIONING_ENABLED: ${PROVISIONING_ENABLED:-false}
+      PROVISIONING_ALLOW_WRITES: ${PROVISIONING_ALLOW_WRITES:-false}
+      PROVISIONING_INTERVAL_SECONDS: ${PROVISIONING_INTERVAL_SECONDS:-300}
+      PROVISIONING_HTTP_TIMEOUT_SECONDS: ${PROVISIONING_HTTP_TIMEOUT_SECONDS:-20}
+      PROVISIONING_JIT_REVIEW_AFTER_DAYS: ${PROVISIONING_JIT_REVIEW_AFTER_DAYS:-7}
+      PROVISIONING_AUDIT_RETENTION_DAYS: ${PROVISIONING_AUDIT_RETENTION_DAYS:-730}
+      PROVISIONING_OPERATIONAL_LOG_RETENTION_DAYS: ${PROVISIONING_OPERATIONAL_LOG_RETENTION_DAYS:-90}
+      PROVISIONING_CLOSED_REVIEW_RETENTION_DAYS: ${PROVISIONING_CLOSED_REVIEW_RETENTION_DAYS:-730}
+      PROVISIONING_KEYCLOAK_URL: http://keycloak:8080
+      PROVISIONING_KEYCLOAK_ISSUER: https://${SSO_HOST:-sso.example.com}/realms/${KEYCLOAK_REALM:-support}
+      PROVISIONING_KEYCLOAK_CLIENT_ID: ${PROVISIONING_KEYCLOAK_CLIENT_ID:-support-tools-provisioning}
+      PROVISIONING_KEYCLOAK_CLIENT_SECRET: ${PROVISIONING_KEYCLOAK_CLIENT_SECRET}
+      PROVISIONING_BOOKSTACK_DB_HOST: bookstack-db
+      PROVISIONING_BOOKSTACK_DB_PORT: 3306
+      PROVISIONING_BOOKSTACK_DB_NAME: ${BOOKSTACK_DB_DATABASE}
+      PROVISIONING_BOOKSTACK_DB_USER: ${BOOKSTACK_DB_USER}
+      PROVISIONING_BOOKSTACK_DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}
+      PROVISIONING_BOOKSTACK_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_BOOKSTACK_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_BOOKSTACK_PROTECTED_USERNAMES: ${PROVISIONING_BOOKSTACK_PROTECTED_USERNAMES:-}
+      PROVISIONING_BOOKSTACK_PROTECTED_EMAILS: ${PROVISIONING_BOOKSTACK_PROTECTED_EMAILS:-}
+      PROVISIONING_ESPOCRM_DB_HOST: espocrm-db
+      PROVISIONING_ESPOCRM_DB_PORT: 3306
+      PROVISIONING_ESPOCRM_DB_NAME: ${ESPOCRM_DB_NAME}
+      PROVISIONING_ESPOCRM_DB_USER: ${ESPOCRM_DB_USER}
+      PROVISIONING_ESPOCRM_DB_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+      PROVISIONING_ESPOCRM_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_ESPOCRM_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_ESPOCRM_PROTECTED_USERNAMES: ${PROVISIONING_ESPOCRM_PROTECTED_USERNAMES:-${ESPOCRM_ADMIN_USERNAME},system}
+      PROVISIONING_ESPOCRM_PROTECTED_EMAILS: ${PROVISIONING_ESPOCRM_PROTECTED_EMAILS:-}
+      PROVISIONING_ERPNEXT_DB_HOST: erpnext-db
+      PROVISIONING_ERPNEXT_DB_PORT: 3306
+      PROVISIONING_ERPNEXT_REDIS_HOST: erpnext-redis-cache
+      PROVISIONING_ERPNEXT_REDIS_PORT: 6379
+      PROVISIONING_ERPNEXT_SITE_NAME: ${ERPNEXT_SITE_NAME:-erp.example.com}
+      PROVISIONING_ERPNEXT_SITES_DIR: /erpnext-sites
+      PROVISIONING_ERPNEXT_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_ERPNEXT_PROTECTED_ACCOUNT_IDS:-Administrator,Guest}
+      PROVISIONING_ERPNEXT_PROTECTED_USERNAMES: ${PROVISIONING_ERPNEXT_PROTECTED_USERNAMES:-Administrator,Guest}
+      PROVISIONING_ERPNEXT_PROTECTED_EMAILS: ${PROVISIONING_ERPNEXT_PROTECTED_EMAILS:-}
+      PROVISIONING_SEAFILE_CONFIG_FILE: /seafile-shared/seafile/conf/seahub_settings.py
+      PROVISIONING_SEAFILE_CCNET_DB_NAME: ccnet_db
+      PROVISIONING_SEAFILE_SEAHUB_DB_NAME: seahub_db
+      PROVISIONING_SEAFILE_OAUTH_PROVIDER: keycloak
+      PROVISIONING_SEAFILE_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_SEAFILE_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_SEAFILE_PROTECTED_USERNAMES: ${PROVISIONING_SEAFILE_PROTECTED_USERNAMES:-}
+      PROVISIONING_SEAFILE_PROTECTED_EMAILS: ${PROVISIONING_SEAFILE_PROTECTED_EMAILS:-${SEAFILE_ADMIN_EMAIL}}
+      PROVISIONING_PENPOT_DATABASE_URL: postgresql://${PENPOT_DB_USER}:${PENPOT_DB_PASSWORD}@penpot-db:5432/${PENPOT_DB_NAME}
+      PROVISIONING_PENPOT_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_PENPOT_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_PENPOT_PROTECTED_USERNAMES: ${PROVISIONING_PENPOT_PROTECTED_USERNAMES:-}
+      PROVISIONING_PENPOT_PROTECTED_EMAILS: ${PROVISIONING_PENPOT_PROTECTED_EMAILS:-}
+      PROVISIONING_NETBIRD_API_URL: http://netbird-server
+      PROVISIONING_NETBIRD_API_TOKEN: ${PROVISIONING_NETBIRD_API_TOKEN:-}
+      PROVISIONING_NETBIRD_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_NETBIRD_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_NETBIRD_PROTECTED_USERNAMES: ${PROVISIONING_NETBIRD_PROTECTED_USERNAMES:-}
+      PROVISIONING_NETBIRD_PROTECTED_EMAILS: ${PROVISIONING_NETBIRD_PROTECTED_EMAILS:-${NETBIRD_ADMIN_EMAIL}}
+      PROVISIONING_VAULTWARDEN_API_URL: http://vaultwarden
+      PROVISIONING_VAULTWARDEN_CLIENT_ID: ${PROVISIONING_VAULTWARDEN_CLIENT_ID:-}
+      PROVISIONING_VAULTWARDEN_CLIENT_SECRET: ${PROVISIONING_VAULTWARDEN_CLIENT_SECRET:-}
+      PROVISIONING_VAULTWARDEN_ORGANIZATION_ID: ${PROVISIONING_VAULTWARDEN_ORGANIZATION_ID:-}
+      PROVISIONING_VAULTWARDEN_DEVICE_IDENTIFIER: ${PROVISIONING_VAULTWARDEN_DEVICE_IDENTIFIER:-}
+      PROVISIONING_VAULTWARDEN_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_VAULTWARDEN_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_VAULTWARDEN_PROTECTED_USERNAMES: ${PROVISIONING_VAULTWARDEN_PROTECTED_USERNAMES:-}
+      PROVISIONING_VAULTWARDEN_PROTECTED_EMAILS: ${PROVISIONING_VAULTWARDEN_PROTECTED_EMAILS:-}
+      PROVISIONING_OSTICKET_DB_HOST: osticket-db
+      PROVISIONING_OSTICKET_DB_PORT: 3306
+      PROVISIONING_OSTICKET_DB_NAME: ${OSTICKET_DB_NAME}
+      PROVISIONING_OSTICKET_DB_USER: ${OSTICKET_DB_USER}
+      PROVISIONING_OSTICKET_DB_PASSWORD: ${OSTICKET_DB_PASSWORD}
+      PROVISIONING_OSTICKET_SCHEMA_SIGNATURE: ${PROVISIONING_OSTICKET_SCHEMA_SIGNATURE:-83a22ba22b1a6a624fcb1da03882ac1b}
+      PROVISIONING_OSTICKET_DEPARTMENT_NAME: ${PROVISIONING_OSTICKET_DEPARTMENT_NAME:-Support}
+      PROVISIONING_OSTICKET_ROLE_NAME: ${PROVISIONING_OSTICKET_ROLE_NAME:-Support Agent}
+      PROVISIONING_OSTICKET_AUTH_BACKEND: ${PROVISIONING_OSTICKET_AUTH_BACKEND:-}
+      PROVISIONING_OSTICKET_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_OSTICKET_PROTECTED_ACCOUNT_IDS:-1}
+      PROVISIONING_OSTICKET_PROTECTED_USERNAMES: ${PROVISIONING_OSTICKET_PROTECTED_USERNAMES:-${OSTICKET_ADMIN_USERNAME}}
+      PROVISIONING_OSTICKET_PROTECTED_EMAILS: ${PROVISIONING_OSTICKET_PROTECTED_EMAILS:-${OSTICKET_ADMIN_EMAIL}}
+      PROVISIONING_GUACAMOLE_DATABASE_URL: postgresql://${GUACAMOLE_DB_USER}:${GUACAMOLE_DB_PASSWORD}@guacamole-db:5432/${GUACAMOLE_DB_NAME}
+      PROVISIONING_GUACAMOLE_PROTECTED_ACCOUNT_IDS: ${PROVISIONING_GUACAMOLE_PROTECTED_ACCOUNT_IDS:-}
+      PROVISIONING_GUACAMOLE_PROTECTED_USERNAMES: ${PROVISIONING_GUACAMOLE_PROTECTED_USERNAMES:-guacadmin}
+      PROVISIONING_GUACAMOLE_PROTECTED_EMAILS: ${PROVISIONING_GUACAMOLE_PROTECTED_EMAILS:-}
+      FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT: ${FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT:-}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
@@ -371,11 +440,13 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
     volumes:
-      - ./config/orangehrm/leave-notifications.json:/seed/leave-notifications.json:ro
-      - ./config/orangehrm/email-templates:/seed/templates:ro
+      - ./config/frappe-hr/leave-notifications.json:/seed/leave-notifications.json:ro
+      - ./config/frappe-hr/email-templates:/seed/templates:ro
       - support-tools-runtime:/runtime
+      - erpnext-sites:/erpnext-sites:ro
+      - seafile-data:/seafile-shared:ro
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/automations/healthz', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/internal/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -383,35 +454,35 @@ services:
     networks:
       - backend
 
-  orangehrm-leave-notifier:
+  frappe-hr-leave-notifier:
     build:
-      context: ./services/orangehrm-leave-notifier
-    container_name: support-orangehrm-leave-notifier
+      context: ./services/frappe-hr-leave-notifier
+    container_name: support-frappe-hr-leave-notifier
     restart: unless-stopped
     depends_on:
-      orangehrm-db:
+      erpnext-db:
         condition: service_started
       support-tools:
         condition: service_healthy
     environment:
       TZ: ${TZ:-Europe/Berlin}
-      ORANGEHRM_DB_HOST: orangehrm-db
-      ORANGEHRM_DB_PORT: 3306
-      ORANGEHRM_DB_NAME: ${ORANGEHRM_DB_NAME}
-      ORANGEHRM_DB_USER: ${ORANGEHRM_DB_USER}
-      ORANGEHRM_DB_PASSWORD: ${ORANGEHRM_DB_PASSWORD}
-      ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT: ${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT:-${ORANGEHRM_ADMIN_EMAIL}}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_HOST: ${SMTP_HOST}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_PORT: ${SMTP_PORT:-587}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_FROM: ${SMTP_FROM}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_USERNAME: ${SMTP_USER:-}
-      ORANGEHRM_LEAVE_NOTIFIER_SMTP_PASSWORD: ${SMTP_PASS:-}
-      ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS: ${ORANGEHRM_LEAVE_NOTIFIER_INTERVAL_SECONDS:-60}
-      ORANGEHRM_LEAVE_NOTIFIER_CONFIG: /runtime/leave-notifications.json
-      ORANGEHRM_LEAVE_NOTIFIER_TEMPLATE_DIR: /runtime/templates
+      FRAPPE_HR_DB_HOST: erpnext-db
+      FRAPPE_HR_DB_PORT: 3306
+      FRAPPE_HR_DB_USER: ${FRAPPE_HR_NOTIFIER_DB_USER:-frappe_hr_notifier}
+      FRAPPE_HR_DB_PASSWORD: ${FRAPPE_HR_NOTIFIER_DB_PASSWORD}
+      FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT: ${FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT:-}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_HOST: ${SMTP_HOST}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_PORT: ${SMTP_PORT:-587}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_FROM: ${SMTP_FROM}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_USERNAME: ${SMTP_USER:-}
+      FRAPPE_HR_LEAVE_NOTIFIER_SMTP_PASSWORD: ${SMTP_PASS:-}
+      FRAPPE_HR_LEAVE_NOTIFIER_INTERVAL_SECONDS: ${FRAPPE_HR_LEAVE_NOTIFIER_INTERVAL_SECONDS:-60}
+      FRAPPE_HR_LEAVE_NOTIFIER_CONFIG: /runtime/leave-notifications.json
+      FRAPPE_HR_LEAVE_NOTIFIER_TEMPLATE_DIR: /runtime/templates
     volumes:
       - support-tools-runtime:/runtime:ro
+      # Reuse the existing delivery ledger so replacement does not resend summaries.
       - orangehrm-leave-notifier-data:/data
     networks:
       - backend
@@ -447,7 +518,7 @@ services:
       - backend
 
   erpnext-configurator:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-configurator
     restart: on-failure
     profiles: ["bootstrap"]
@@ -473,7 +544,7 @@ services:
       - backend
 
   erpnext-create-site:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-create-site
     restart: "no"
     profiles: ["bootstrap"]
@@ -482,6 +553,14 @@ services:
       - erpnext-redis-cache
       - erpnext-redis-queue
       - erpnext-configurator
+    environment:
+      ERPNEXT_DB_NAME: ${ERPNEXT_DB_NAME:-erpnext}
+      ERPNEXT_DB_ROOT_PASSWORD: ${ERPNEXT_DB_ROOT_PASSWORD}
+      ERPNEXT_SITE_CONFIG: /home/frappe/frappe-bench/sites/${ERPNEXT_SITE_NAME:-erp.example.com}/site_config.json
+      FRAPPE_HR_DB_HOST: erpnext-db
+      FRAPPE_HR_DB_PORT: 3306
+      FRAPPE_HR_NOTIFIER_DB_USER: ${FRAPPE_HR_NOTIFIER_DB_USER:-frappe_hr_notifier}
+      FRAPPE_HR_NOTIFIER_DB_PASSWORD: ${FRAPPE_HR_NOTIFIER_DB_PASSWORD}
     entrypoint:
       - bash
       - -lc
@@ -491,18 +570,36 @@ services:
         wait-for-it erpnext-redis-cache:6379 -t 120
         wait-for-it erpnext-redis-queue:6379 -t 120
         if [ ! -d "sites/${ERPNEXT_SITE_NAME:-erp.example.com}" ]; then
-          bench new-site "${ERPNEXT_SITE_NAME:-erp.example.com}" --no-mariadb-socket --mariadb-root-password "${ERPNEXT_DB_ROOT_PASSWORD}" --admin-password "${ERPNEXT_ADMIN_PASSWORD}"
+          bench new-site "${ERPNEXT_SITE_NAME:-erp.example.com}" --no-mariadb-socket --mariadb-root-password "${ERPNEXT_DB_ROOT_PASSWORD}" --db-name "${ERPNEXT_DB_NAME:-erpnext}" --db-password "${ERPNEXT_DB_PASSWORD}" --admin-password "${ERPNEXT_ADMIN_PASSWORD}"
         fi
         if ! bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" list-apps | grep -q '^erpnext '; then
           bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" install-app erpnext
         fi
+        # Existing sites must receive ERPNext schema moves before HRMS fixtures
+        # reference DocTypes that were relocated from ERPNext into HRMS.
+        bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" migrate
+        if ! bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" list-apps | grep -q '^hrms '; then
+          bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" install-app hrms
+        fi
+        bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" migrate
+        for field in \
+          expense_approver_mandatory_in_expense_claim \
+          leave_approver_mandatory_in_leave_application \
+          prevent_self_leave_approval \
+          prevent_self_expense_approval \
+          send_leave_notification; do
+          bench --site "${ERPNEXT_SITE_NAME:-erp.example.com}" execute \
+            frappe.db.set_single_value --args "[\"HR Settings\", \"$$field\", 1]"
+        done
+        /home/frappe/frappe-bench/env/bin/python /opt/support-stack/frappe_hr_db_user.py
     volumes:
       - erpnext-sites:/home/frappe/frappe-bench/sites
+      - ./scripts/frappe_hr_db_user.py:/opt/support-stack/frappe_hr_db_user.py:ro
     networks:
       - backend
 
   erpnext-backend:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-backend
     restart: unless-stopped
     depends_on:
@@ -516,7 +613,7 @@ services:
       - backend
 
   erpnext-websocket:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-websocket
     restart: unless-stopped
     depends_on:
@@ -530,7 +627,7 @@ services:
       - backend
 
   erpnext-queue-short:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-queue-short
     restart: unless-stopped
     depends_on:
@@ -544,7 +641,7 @@ services:
       - backend
 
   erpnext-queue-long:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-queue-long
     restart: unless-stopped
     depends_on:
@@ -558,7 +655,7 @@ services:
       - backend
 
   erpnext-scheduler:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-scheduler
     restart: unless-stopped
     depends_on:
@@ -572,7 +669,7 @@ services:
       - backend
 
   erpnext-frontend:
-    image: frappe/erpnext:${ERPNEXT_VERSION:-version-15}
+    image: ${FRAPPE_HRMS_IMAGE:-ghcr.io/frappe/hrms:v15.64.3@sha256:437cf73e2da0f3e80b400f9fc3ca7fa21e93a7a0620474545140a8698d83812c}
     container_name: support-erpnext-frontend
     restart: unless-stopped
     depends_on:
@@ -617,7 +714,7 @@ services:
       - backend
 
   seafile:
-    image: seafileltd/seafile-mc:latest
+    image: ${SEAFILE_IMAGE:-seafileltd/seafile-mc@sha256:f1e19cc1cdd52ed8ec883de114acaa1e932941515dd6571fce0c0ff02248c4cf}
     container_name: support-seafile
     restart: unless-stopped
     depends_on:
@@ -635,8 +732,14 @@ services:
       SEAFILE_SERVER_HOSTNAME: ${FILES_HOST:-files.example.com}
       SEAFILE_SERVER_LETSENCRYPT: "false"
       MEMCACHED_HOST: seafile-memcached
+      FILES_HOST: ${FILES_HOST:-files.example.com}
+      SSO_HOST: ${SSO_HOST:-sso.example.com}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-support}
+      SEAFILE_OIDC_CLIENT_ID: ${SEAFILE_OIDC_CLIENT_ID:-seafile}
+      SEAFILE_OIDC_CLIENT_SECRET: ${SEAFILE_OIDC_CLIENT_SECRET}
     volumes:
       - seafile-data:/shared
+      - ./config/seafile/custom-cont-init.d/20-configure-keycloak-oauth.sh:/etc/my_init.d/20-configure-keycloak-oauth.sh:ro
     networks:
       - backend
 
@@ -671,7 +774,7 @@ services:
       - penpot-db
       - penpot-redis
     environment:
-      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc disable-email-verification}
+      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc enable-oidc-registration disable-email-verification}
       PENPOT_SECRET_KEY: ${PENPOT_SECRET_KEY}
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
       PENPOT_DATABASE_URI: postgresql://penpot-db/${PENPOT_DB_NAME}
@@ -688,6 +791,7 @@ services:
       PENPOT_OIDC_NAME_ATTR: name
       PENPOT_OIDC_EMAIL_ATTR: email
       PENPOT_OIDC_USER_INFO_SOURCE: userinfo
+      PENPOT_SSRF_ALLOWED_HOSTS: keycloak ${SSO_HOST:-sso.example.com}
       PENPOT_SMTP_HOST: ${SMTP_HOST}
       PENPOT_SMTP_PORT: ${SMTP_PORT:-587}
       PENPOT_SMTP_USERNAME: ${SMTP_USER:-}
@@ -732,7 +836,7 @@ services:
       - penpot-exporter
       - penpot-mcp
     environment:
-      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc disable-email-verification}
+      PENPOT_FLAGS: ${PENPOT_FLAGS:-enable-login-with-oidc enable-oidc-registration disable-email-verification}
       PENPOT_PUBLIC_URI: https://${PENPOT_HOST:-penpot.example.com}
       PENPOT_BACKEND_URI: http://penpot-backend:6060
       PENPOT_EXPORTER_URI: http://penpot-exporter:6061
@@ -740,7 +844,7 @@ services:
       - backend
 
   osticket:
-    image: devinsolutions/osticket:latest
+    image: ${OSTICKET_IMAGE:-devinsolutions/osticket@sha256:2098f85341ca71e8ceb7ddfe28c4fee188505789148061819219ec4bcc3a8674}
     container_name: support-osticket
     restart: unless-stopped
     depends_on:
@@ -787,6 +891,7 @@ services:
       OAUTH2_PROXY_UPSTREAMS: "static://202"
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_SCOPE: "openid profile email"
+      OAUTH2_PROXY_OIDC_GROUPS_CLAIM: "groups"
       OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_COOKIE_SECURE: "true"
@@ -823,7 +928,6 @@ services:
       - netbird-dashboard
       - osticket
       - espocrm
-      - orangehrm
       - support-tools
       - erpnext-frontend
       - seafile
@@ -1021,6 +1125,8 @@ volumes:
   osticket-db-data:
   espocrm-db-data:
   espocrm-data:
+  # Retained for rollback/export after the Frappe HR cutover. Remove only after
+  # the approved migration-retention period has elapsed.
   orangehrm-db-data:
   orangehrm-data:
   orangehrm-leave-notifier-data:

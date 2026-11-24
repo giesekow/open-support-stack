@@ -62,6 +62,35 @@ check_min_length() {
   fi
 }
 
+check_positive_integer() {
+  local key="$1"
+  local val
+  val="$(env_value "$key")"
+  if [[ ! "$val" =~ ^[0-9]+$ ]] || (( 10#$val < 1 )); then
+    echo "[FAIL] ${key} must be a positive integer"
+    failures=$((failures + 1))
+  fi
+}
+
+check_integer_range() {
+  local key="$1" minimum="$2" maximum="$3" val
+  val="$(env_value "$key")"
+  if [[ ! "$val" =~ ^[0-9]+$ ]] || (( 10#$val < minimum || 10#$val > maximum )); then
+    echo "[FAIL] ${key} must be an integer between ${minimum} and ${maximum}"
+    failures=$((failures + 1))
+  fi
+}
+
+check_digest_image() {
+  local key="$1"
+  local val
+  val="$(env_value "$key")"
+  if [[ "$val" != *@sha256:* ]]; then
+    echo "[FAIL] ${key} must be pinned by sha256 digest"
+    failures=$((failures + 1))
+  fi
+}
+
 check_netbird_cookie_key() {
   local val raw_size decoded_size=""
   val="$(env_value NETBIRD_SESSION_COOKIE_KEY)"
@@ -111,11 +140,17 @@ for k in \
   ESPOCRM_DB_PASSWORD \
   ESPOCRM_DB_ROOT_PASSWORD \
   ESPOCRM_ADMIN_PASSWORD \
+  ERPNEXT_DB_ROOT_PASSWORD \
+  ERPNEXT_ADMIN_PASSWORD \
+  ERPNEXT_DB_PASSWORD \
+  ERPNEXT_OIDC_CLIENT_SECRET \
+  FRAPPE_HR_NOTIFIER_DB_PASSWORD \
   OSTICKET_OIDC_CLIENT_SECRET \
   SUPPORT_PORTAL_OIDC_CLIENT_SECRET \
   SUPPORT_PORTAL_OIDC_COOKIE_SECRET \
   SUPPORT_TOOLS_DB_PASSWORD \
   SUPPORT_TOOLS_SESSION_SECRET \
+  PROVISIONING_KEYCLOAK_CLIENT_SECRET \
   NETBIRD_RELAY_AUTH_SECRET \
   NETBIRD_SESSION_COOKIE_KEY \
   NETBIRD_DATASTORE_ENCRYPTION_KEY \
@@ -127,8 +162,14 @@ do
   check_not_placeholder "$k"
 done
 
+check_integer_range "PROVISIONING_NETBIRD_TOKEN_DAYS" 1 365
+
+check_required "SUPPORT_TOOLS_ALLOWED_GROUP"
 check_min_length "SUPPORT_TOOLS_DB_PASSWORD" 32
 check_min_length "SUPPORT_TOOLS_SESSION_SECRET" 64
+check_min_length "PROVISIONING_KEYCLOAK_CLIENT_SECRET" 32
+check_required "FRAPPE_HR_NOTIFIER_DB_USER"
+check_min_length "FRAPPE_HR_NOTIFIER_DB_PASSWORD" 32
 check_min_length "NETBIRD_RELAY_AUTH_SECRET" 32
 check_min_length "NETBIRD_ADMIN_PASSWORD" 16
 check_min_length "NETBIRD_OIDC_CLIENT_SECRET" 32
@@ -136,24 +177,44 @@ check_netbird_cookie_key
 check_base64_size "NETBIRD_DATASTORE_ENCRYPTION_KEY" 32
 check_bcrypt_b64
 
-netbird_server_image="$(env_value NETBIRD_SERVER_IMAGE)"
-netbird_dashboard_image="$(env_value NETBIRD_DASHBOARD_IMAGE)"
-if [[ "$netbird_server_image" != *@sha256:* ]]; then
-  echo "[FAIL] NETBIRD_SERVER_IMAGE must be pinned by sha256 digest"
-  failures=$((failures + 1))
-fi
-if [[ "$netbird_dashboard_image" != *@sha256:* ]]; then
-  echo "[FAIL] NETBIRD_DASHBOARD_IMAGE must be pinned by sha256 digest"
-  failures=$((failures + 1))
-fi
+for k in \
+  PROVISIONING_JIT_REVIEW_AFTER_DAYS \
+  PROVISIONING_AUDIT_RETENTION_DAYS \
+  PROVISIONING_OPERATIONAL_LOG_RETENTION_DAYS \
+  PROVISIONING_CLOSED_REVIEW_RETENTION_DAYS
+do
+  check_positive_integer "$k"
+done
+
+for k in \
+  NETBIRD_SERVER_IMAGE \
+  NETBIRD_DASHBOARD_IMAGE \
+  BOOKSTACK_IMAGE \
+  ESPOCRM_IMAGE \
+  SEAFILE_IMAGE \
+  OSTICKET_IMAGE \
+  FRAPPE_HRMS_IMAGE
+do
+  check_digest_image "$k"
+done
 
 check_equals "KEYCLOAK_START_CMD" "start"
 check_equals "KEYCLOAK_HOSTNAME_STRICT" "true"
 check_equals "SUPPORT_PORTAL_OIDC_SSL_INSECURE_SKIP_VERIFY" "false"
 check_equals "VAULTWARDEN_SIGNUPS_ALLOWED" "false"
 check_equals "SUPPORT_TOOLS_COOKIE_SECURE" "true"
+check_equals "SUPPORT_TOOLS_ALLOWED_GROUP" "support-admin"
 check_equals "SUPPORT_TOOLS_DEV_AUTH_BYPASS" "false"
+check_equals "PROVISIONING_ALLOW_WRITES" "false"
+check_equals "BOOKSTACK_DEFAULT_REGISTRATION_ROLE" "Viewer"
+check_equals "BOOKSTACK_SESSION_DRIVER" "database"
 check_equals "NETBIRD_DISABLE_ANONYMOUS_METRICS" "true"
+check_equals "PROVISIONING_NETBIRD_REQUIRE_USER_APPROVAL" "false"
+
+if [[ "$(env_value PROVISIONING_ENABLED)" == "true" || "$(env_value PROVISIONING_ALLOW_WRITES)" == "true" ]]; then
+  check_required "PROVISIONING_NETBIRD_API_TOKEN"
+  check_not_placeholder "PROVISIONING_NETBIRD_API_TOKEN"
+fi
 
 netbird_host="$(env_value NETBIRD_HOST)"
 netbird_stun_port="$(env_value NETBIRD_STUN_PORT)"

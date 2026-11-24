@@ -19,7 +19,8 @@ from .models import AutomationRule, AutomationRuleRevision
 
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-STATUS_NAMES = {2: "Approved", 3: "Taken"}
+STATUS_NAMES = {"Approved": "Approved"}
+LEGACY_STATUSES = {2: "Approved", 3: "Approved", "2": "Approved", "3": "Approved"}
 RULE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{1,63}")
 
 
@@ -65,7 +66,7 @@ def sample_context(rule_id: str = "sample-rule") -> dict[str, Any]:
                 "subunit": "Engineering",
                 "locations": ["Hamburg", "Remote"],
                 "locations_label": "Hamburg, Remote",
-                "status": "Taken",
+                "status": "Approved",
             },
         ],
     }
@@ -129,9 +130,11 @@ def validate_rule(data: dict[str, Any]) -> dict[str, Any]:
     if not -366 <= start_offset_days <= 366:
         raise ValidationError("Start offset must be between -366 and 366 days")
 
-    statuses = sorted({int(item) for item in data.get("statuses", [])})
+    statuses = sorted(
+        {LEGACY_STATUSES.get(item, str(item)) for item in data.get("statuses", [])}
+    )
     if not statuses or set(statuses) - STATUS_NAMES.keys():
-        raise ValidationError("Choose Approved, Taken, or both")
+        raise ValidationError("Choose the Approved leave status")
 
     filters = data.get("filters", {})
     normalized = {
@@ -256,9 +259,9 @@ def seed_from_files(session: Session) -> None:
     seed_dir = Path(os.getenv("SUPPORT_TOOLS_SEED_DIR", "/seed"))
     with (seed_dir / "leave-notifications.json").open(encoding="utf-8") as handle:
         config = json.load(handle)
-    recipient_fallback = os.getenv("ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT", "")
+    recipient_fallback = os.getenv("FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT", "")
     for source in config.get("rules", []):
-        recipients = [recipient_fallback if item == "${ORANGEHRM_LEAVE_NOTIFIER_RECIPIENT}" else item for item in source["recipients"]]
+        recipients = [recipient_fallback if item == "${FRAPPE_HR_LEAVE_NOTIFIER_RECIPIENT}" else item for item in source["recipients"]]
         data = validate_rule(
             {
                 "id": source["id"],
@@ -267,7 +270,7 @@ def seed_from_files(session: Session) -> None:
                 "schedule_time": source["schedule"]["time"],
                 "start_offset_days": source.get("start_offset_days", 0),
                 "period_days": source.get("days", 1),
-                "statuses": source.get("statuses", [2, 3]),
+                "statuses": source.get("statuses", ["Approved"]),
                 "recipients": recipients,
                 "subject": source["subject"],
                 "text_template": (seed_dir / "templates" / source["templates"]["text"]).read_text(encoding="utf-8"),
@@ -318,4 +321,3 @@ def send_test_email(rule: AutomationRule, recipient: str) -> None:
         if username:
             client.login(username, password)
         client.send_message(message)
-

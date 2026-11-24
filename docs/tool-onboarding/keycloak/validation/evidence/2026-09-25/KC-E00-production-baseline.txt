@@ -1,0 +1,19 @@
+Evidence ID: KC-E00
+Captured UTC: 2026-09-25T15:39:23Z
+Environment: production support stack
+Host identifier: support-stack
+Keycloak runtime: 25.0.6
+JVM: OpenJDK 21.0.4 LTS
+PostgreSQL runtime: 16.14
+Container image reference: quay.io/keycloak/keycloak:25.0
+Runtime command: start --import-realm --http-enabled=true --proxy-headers=xforwarded --hostname=https://sso.internal-support.bonescreen.de --hostname-strict=true
+Container status at capture: running (4 days)
+Database status at capture: running (10 days)
+Host-published Keycloak ports: none
+Development-mode warning in reviewed startup logs: absent
+Recent warning review: authentication and redirect failures exist; raw log lines excluded because they contain user identifiers.
+
+Command-level evidence
+----------------------
+- The complete command transcript for this historical pre-upgrade capture was not retained; it is not reconstructed here.
+- The superseding runtime, image digest, startup command, profile, container exposure, and service-state commands with responses are recorded in KC-E13-current-state-command-transcript.txt.

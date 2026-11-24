@@ -1,0 +1,65 @@
+Evidence ID: KC-E01b-authentication-flow
+Captured UTC: 2026-09-25T15:42:00Z
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+--- Active realm flow bindings ---
+{
+  "browserFlow" : "browser",
+  "directGrantFlow" : "direct grant",
+  "resetCredentialsFlow" : "reset credentials",
+  "clientAuthenticationFlow" : "clients"
+}--- Browser-flow executions ---
+
+[ {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Cookie",
+  "providerId" : "auth-cookie",
+  "level" : 0,
+  "index" : 0
+}, {
+  "requirement" : "DISABLED",
+  "displayName" : "Kerberos",
+  "providerId" : "auth-spnego",
+  "level" : 0,
+  "index" : 1
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "Identity Provider Redirector",
+  "providerId" : "identity-provider-redirector",
+  "level" : 0,
+  "index" : 2
+}, {
+  "requirement" : "ALTERNATIVE",
+  "displayName" : "forms",
+  "authenticationFlow" : true,
+  "level" : 0,
+  "index" : 3
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "Username Password Form",
+  "providerId" : "auth-username-password-form",
+  "level" : 1,
+  "index" : 0
+}, {
+  "requirement" : "CONDITIONAL",
+  "displayName" : "Browser - Conditional OTP",
+  "authenticationFlow" : true,
+  "level" : 1,
+  "index" : 1
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "Condition - user configured",
+  "providerId" : "conditional-user-configured",
+  "level" : 2,
+  "index" : 0
+}, {
+  "requirement" : "REQUIRED",
+  "displayName" : "OTP Form",
+  "providerId" : "auth-otp-form",
+  "level" : 2,
+  "index" : 1
+} ]
+
+Command-level evidence
+----------------------
+- The original command transcript was not retained.
+- The active flow-binding and browser-execution commands were safely rerun and are recorded with their responses in KC-E13-current-state-command-transcript.txt.

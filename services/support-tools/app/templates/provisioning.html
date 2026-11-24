@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Provisioning | Support Tools{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <div>
+    <p class="eyebrow">Identity control plane</p>
+    <h1>Provision access deliberately.</h1>
+    <p>Keycloak is the identity source. Every target starts disabled and in dry-run mode, with changes recorded before execution.</p>
+  </div>
+  <form method="post" action="{{ base_path }}/provisioning/reconcile">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="button primary" type="submit">Reconcile now</button>
+  </form>
+</section>
+
+<div class="guardrail-grid">
+  <article class="guardrail {{ 'ready' if module_enabled else 'locked' }}">
+    <span>Scheduler</span><strong>{{ 'Enabled' if module_enabled else 'Manual only' }}</strong>
+    <small>PROVISIONING_ENABLED</small>
+  </article>
+  <article class="guardrail {{ 'warning' if global_writes_allowed else 'ready' }}">
+    <span>Global write gate</span><strong>{{ 'OPEN' if global_writes_allowed else 'Locked' }}</strong>
+    <small>PROVISIONING_ALLOW_WRITES</small>
+  </article>
+  <article class="guardrail ready">
+    <span>Default posture</span><strong>Fail closed</strong>
+    <small>Per-target dry-run remains independent</small>
+  </article>
+</div>
+
+<section class="section-head">
+  <div><p class="eyebrow">Applications</p><h2>Provisioning targets</h2></div>
+  <span class="count">{{ targets|length }} registered</span>
+</section>
+<div class="target-grid">
+{% for target in targets %}
+  <article class="target-card">
+    <div class="rule-top">
+      <span class="status {{ 'live' if target.enabled else 'paused' }}">{{ 'Enabled' if target.enabled else 'Disabled' }}</span>
+      <span class="strategy">{{ target.strategy|replace('_', ' ') }}</span>
+    </div>
+    <h3>{{ target.display_name }}</h3>
+    <p class="rule-id">adapter: {{ target.adapter }}</p>
+    <form method="post" action="{{ base_path }}/provisioning/targets/{{ target.id }}" class="target-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Eligibility groups
+        <input name="eligibility_groups" value="{{ target.eligibility_groups|join(', ') }}" required>
+      </label>
+      <label class="inline-check"><input type="checkbox" name="enabled" {% if target.enabled %}checked{% endif %}> Enable reconciliation</label>
+      <label class="inline-check"><input type="checkbox" name="dry_run" {% if target.dry_run %}checked{% endif %}> Dry-run only</label>
+      <button class="button" type="submit">Save target</button>
+    </form>
+    <p class="audit">Updated {{ target.updated_at.strftime('%d %b %Y, %H:%M') }} by {{ target.updated_by }}</p>
+  </article>
+{% endfor %}
+</div>
+
+<section class="section-head">
+  <div><p class="eyebrow">Review queue</p><h2>Planned actions</h2></div>
+  <span class="count">Latest {{ actions|length }}</span>
+</section>
+<div class="data-table-wrap">
+<table class="data-table">
+  <thead><tr><th>Identity</th><th>Target</th><th>Action</th><th>State</th><th>Details</th><th>Approval</th></tr></thead>
+  <tbody>
+  {% for action in actions %}
+    {% set source = sources.get(action.source_identity_id) %}
+    <tr>
+      <td>{% if source %}<a href="{{ base_path }}/provisioning/identities/{{ source.id }}">{{ source.email or source.username }}</a>{% else %}Identity {{ action.source_identity_id }}{% endif %}</td>
+      <td>{{ action.target_id }}</td>
+      <td><code>{{ action.action }}</code></td>
+      <td><span class="status state-{{ action.status }}">{{ action.status|replace('_', ' ') }}</span></td>
+      <td class="details-cell">{{ action.details.get('reason') or action.details.get('email') or action.details.get('employee_number') or '-' }}</td>
+      <td>
+      {% if action.status in ['planned', 'retryable'] %}
+        <form method="post" action="{{ base_path }}/provisioning/actions/{{ action.id }}/execute" class="approval-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="reason" placeholder="{{ 'Retry reason' if action.status == 'retryable' else 'Approval reason' }}" required>
+          <button class="button" type="submit">{{ 'Retry' if action.status == 'retryable' else 'Execute' }}</button>
+        </form>
+      {% else %}
+        <small>{{ action.approved_by or 'Not executable' }}</small>
+      {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6">No provisioning actions have been recorded.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<section class="section-head">
+  <div><p class="eyebrow">Audit trail</p><h2>Recent reconciliation runs</h2></div>
+</section>
+<div class="timeline">
+{% for run in runs %}
+  <article class="revision">
+    <div><span class="status state-{{ run.status }}">{{ run.status|replace('_', ' ') }}</span><strong>{{ run.id[:8] }}</strong></div>
+    <div><b>{{ run.source_count }}</b> identities · {{ run.planned_count }} planned · {{ run.conflict_count }} conflicts · {{ run.error_count }} errors<p>{{ run.trigger }} by {{ run.actor }}</p></div>
+    <time>{{ run.started_at.strftime('%d %b %Y, %H:%M') }}</time>
+  </article>
+{% else %}
+  <div class="empty"><h3>No reconciliation runs yet</h3><p>Enable a target and run a manual dry-run to create the first evidence.</p></div>
+{% endfor %}
+</div>
+{% endblock %}

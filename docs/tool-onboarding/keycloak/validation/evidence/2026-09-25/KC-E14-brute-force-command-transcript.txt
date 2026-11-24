@@ -1,0 +1,86 @@
+Evidence ID: KC-E14-brute-force-command-transcript
+Captured UTC: 2026-09-25T19:49:41Z
+Environment: production support realm using dedicated temporary objects
+Result: PASSED
+
+Executed entry command
+----------------------
+$ ssh -i <SSH_KEY> administrator@<PRODUCTION_HOST> 'cd /home/administrator/open-support-stack && ./scripts/validate_keycloak_bruteforce.sh .env'
+
+Reusable script
+---------------
+Path: scripts/validate_keycloak_bruteforce.sh
+SHA-256: fb3bb5de1f4a6d4afa7e88d6184004ac50838767eaca9e5fac2669f0a176ece4
+
+Sanitized command and response transcript
+-----------------------------------------
+Evidence execution UTC: 2026-09-25T19:49:41Z
+Environment: production support realm; dedicated temporary objects
+Redaction: administrator password, test password, tokens, generated IDs, username, and email are replaced.
+
+$ docker compose --env-file <ENV_FILE> exec -T keycloak kcadm.sh config credentials --server http://localhost:8080 --realm master --user <ADMIN_USER> --password <REDACTED>
+Logging into http://localhost:8080 as user <ADMIN_USER> of realm master
+Exit code: 0
+
+$ kcadm.sh create clients -r support -s clientId=<TEMP_CLIENT> -s enabled=true -s publicClient=true -s directAccessGrantsEnabled=true -s standardFlowEnabled=false -i
+Response: created; client ID <REDACTED_ID>
+
+$ kcadm.sh create users -r support -s username=<TEMP_USER> -s email=<SYNTHETIC_EMAIL> -s firstName=Validation -s lastName=User -s emailVerified=true -s enabled=true -i
+Response: created; user ID <REDACTED_ID>
+
+$ kcadm.sh update users/<USER_ID> -r support -s 'requiredActions=[]'
+Exit code: 0
+
+$ kcadm.sh set-password -r support --userid <USER_ID> --new-password <REDACTED> --temporary=false
+Exit code: 0
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<CORRECT_PASSWORD>
+HTTP 200
+{ "access_token": "<REDACTED_TOKEN>" }
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD_1>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD_2>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD_3>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD_4>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<INCORRECT_PASSWORD_5>
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ kcadm.sh get attack-detection/brute-force/users/<USER_ID> -r support --fields disabled,numFailures
+
+{
+  "numFailures" : 2,
+  "disabled" : true
+}
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<CORRECT_PASSWORD> # while locked
+HTTP 400
+{"error":"invalid_grant","error_description":"Invalid user credentials"}
+
+$ kcadm.sh delete attack-detection/brute-force/users/<USER_ID> -r support
+Exit code: 0
+
+$ curl -sS -o <TEMP_RESPONSE> -w '%{http_code}' -X POST https://sso.internal-support.bonescreen.de/realms/support/protocol/openid-connect/token -d grant_type=password -d client_id=<TEMP_CLIENT> -d username=<TEMP_USER> --data-urlencode password=<CORRECT_PASSWORD> # after unlock
+HTTP 200
+{ "access_token": "<REDACTED_TOKEN>" }
+
+$ kcadm.sh delete users/<USER_ID> -r support; kcadm.sh delete clients/<CLIENT_ID> -r support
+Exit code: 0
+
+$ kcadm.sh get users -r support -q username=<TEMP_USER>; kcadm.sh get clients -r support -q clientId=<TEMP_CLIENT>
+
+
+temporary_users_remaining=0
+temporary_clients_remaining=0
+Overall result: PASSED

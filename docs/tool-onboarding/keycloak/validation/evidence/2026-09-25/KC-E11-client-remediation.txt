@@ -1,0 +1,28 @@
+Evidence ID: KC-E11
+Captured UTC: 2026-09-25T18:54:00Z to 2026-09-25T19:04:00Z
+Environment: production support realm and OrangeHRM integration
+
+Configuration audit:
+- Managed application clients checked: support-portal, guacamole, bookstack, osticket, espocrm, orangehrm, erpnext, seafile, penpot, netbird
+- Plain-HTTP redirect/origin entries: 0
+- Wildcard redirect/origin entries: 0
+- Redirect synchronization completed successfully on repeated execution.
+
+Boundary revalidation:
+- Every exact registered callback produced a Keycloak login response (HTTP 200 or 302).
+- The corresponding altered path for every managed client was rejected with HTTP 400.
+- Ten exact callbacks accepted; ten altered callbacks rejected.
+
+OrangeHRM split-endpoint integration:
+- Stored provider URL: https://sso.internal-support.bonescreen.de/realms/support
+- Browser authorization endpoint: public HTTPS Keycloak URL
+- Browser callback emitted by OrangeHRM: exact HTTPS OrangeHRM callback
+- Server-side token, user-info, and JWKS endpoints: internal Docker HTTP endpoint
+- Login entrypoint changed from HTTP 500 during remediation to HTTP 302 with the exact registered HTTPS callback.
+
+Conclusion: KC-DEV-003 is remediated and revalidated without restoring wildcard or plain-HTTP callback entries.
+
+Command-level evidence
+----------------------
+- Exact managed-client configuration, zero HTTP/wildcard counts, accepted exact callbacks, rejected altered callbacks, and the OrangeHRM redirect response are recorded with commands in KC-E13-current-state-command-transcript.txt.
+- Two current synchronization passes with equal normalized state hashes are recorded in KC-E16-sync-command-transcript.txt.

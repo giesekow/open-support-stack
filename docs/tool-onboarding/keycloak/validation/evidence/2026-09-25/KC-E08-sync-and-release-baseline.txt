@@ -1,0 +1,34 @@
+Evidence ID: KC-E08-sync-and-release-baseline
+Captured UTC: 2026-09-25T15:51:00Z
+Environment: deployed synchronization script tested against an isolated restored clone
+
+Runtime and deployment baseline:
+- Keycloak runtime: 25.0.6
+- PostgreSQL runtime: 16.14
+- Keycloak image reference: quay.io/keycloak/keycloak:25.0
+- Deployed and repository sync-script SHA-256: b075115006cdab7e699c425100cd3e5150018bb988fc3ef9878ce5f1fd720080
+
+Isolated synchronization:
+- Clone discovery: HTTP 200
+- Normalized state before SHA-256: d53f77650a68aab039df74c9f60853aef636922a2d854f22f0c65530a42c8b73
+- Normalized state after first run SHA-256: d53f77650a68aab039df74c9f60853aef636922a2d854f22f0c65530a42c8b73
+- Normalized state after second run SHA-256: d53f77650a68aab039df74c9f60853aef636922a2d854f22f0c65530a42c8b73
+- First-run changed clients: none
+- First-run unrelated clients: none
+- Second-run changed clients: none
+- Second run idempotent: true
+- Host-published ports: none
+- Isolated containers and network removed after execution.
+
+Release review:
+- The approved document baseline names Keycloak 25.0 and PostgreSQL 16; deployed runtimes are 25.0.6 and 16.14.
+- The Keycloak image uses a mutable minor tag rather than an immutable digest.
+- The current official Keycloak server release on 2026-09-25 is 26.7.4 and its release notice lists security fixes: https://www.keycloak.org/2026/09/keycloak-2674-released
+
+Conclusion: synchronization is repeatable, but the security-version review and immutable image baseline require remediation before release recommendation.
+
+Command-level evidence
+----------------------
+- The complete transcript for the original isolated-clone synchronization run was not retained; its recorded hashes are preserved above and are not reconstructed.
+- Current immutable runtime and service-state commands with responses are recorded in KC-E13-current-state-command-transcript.txt.
+- Two fresh synchronization passes, normalized before/after hashes, comparison assertions, and cleanup output are recorded in KC-E16-sync-command-transcript.txt.
