@@ -315,7 +315,7 @@ server {
     ssl_certificate __SSL_CERT_PATH__;
     ssl_certificate_key __SSL_KEY_PATH__;
 
-    root /usr/share/nginx/html;
+    root /tmp/support-stack-html;
     index index.html;
 
     location /oauth2/ {

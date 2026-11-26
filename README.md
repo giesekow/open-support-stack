@@ -230,8 +230,10 @@ Back up both the `support-tools-db-data` PostgreSQL volume and the `support-tool
 ```bash
 ./scripts/render_netbird_config.sh .env.production
 ./scripts/render_keycloak_realm.sh .env.production
-./scripts/render_portal_index.sh .env.production
 ```
+The nginx container renders the portal index from `index.template.html`, the
+selected Compose environment, and `config/portal-links.json` on every start.
+Do not copy a generated local `nginx/html/index.html` into a deployment.
 2. Pull images:
 ```bash
 docker compose --env-file .env.production pull
@@ -339,7 +341,7 @@ curl -fsS https://<NETBIRD_HOST>/api/instance
 4. `./scripts/render_keycloak_realm.sh <env-file>`
    Render `config/keycloak/realm-support.json` from template/env values.
 5. `./scripts/render_portal_index.sh <env-file>`
-   Render `nginx/html/index.html` portal links from env values and optional additions from `config/portal-links.json` (validated at render time).
+   Render a local `nginx/html/index.html` preview from env values and optional additions from `config/portal-links.json`. The nginx container does not consume this ignored preview; it renders its own runtime copy on every start.
 
 ### Keycloak and SSO
 

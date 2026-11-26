@@ -91,6 +91,17 @@ check_digest_image() {
   fi
 }
 
+check_host_in_base_domain() {
+  local key="$1" base_domain value
+  base_domain="$(env_value BASE_DOMAIN)"
+  value="$(env_value "$key")"
+  if [[ -z "$base_domain" || -z "$value" ]] || \
+     [[ "$value" != "$base_domain" && "$value" != *."$base_domain" ]]; then
+    echo "[FAIL] ${key} must be BASE_DOMAIN (${base_domain:-<unset>}) or one of its subdomains"
+    failures=$((failures + 1))
+  fi
+}
+
 check_netbird_cookie_key() {
   local val raw_size decoded_size=""
   val="$(env_value NETBIRD_SESSION_COOKIE_KEY)"
@@ -176,6 +187,27 @@ check_min_length "NETBIRD_OIDC_CLIENT_SECRET" 32
 check_netbird_cookie_key
 check_base64_size "NETBIRD_DATASTORE_ENCRYPTION_KEY" 32
 check_bcrypt_b64
+
+check_required "BASE_DOMAIN"
+for k in \
+  SUPPORT_HOST \
+  SSO_HOST \
+  VAULT_HOST \
+  DOCS_HOST \
+  REMOTE_HOST \
+  NETBIRD_HOST \
+  TICKETS_HOST \
+  CRM_HOST \
+  HR_HOST \
+  ERP_HOST \
+  FILES_HOST \
+  PENPOT_HOST \
+  PENPOT_MCP_HOST \
+  STATUS_HOST
+do
+  check_required "$k"
+  check_host_in_base_domain "$k"
+done
 
 for k in \
   PROVISIONING_JIT_REVIEW_AFTER_DAYS \
